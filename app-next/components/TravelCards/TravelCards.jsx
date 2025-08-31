@@ -8,13 +8,14 @@ import globalcss from '../../app/globals.css';
 
 export default function TravelCards() {
   const [travelCardData, setTravelCardData] = useState([]);
+
   // const [loading, setLoading] = useState(true);
   // const [error, setError] = useState(null);
   
   // useEffect(() => {
   //   async function fetchTravelData() {
   //     try {
-  //       const res = await fetch("/api/travel-cards"); // 👈 replace with your API endpoint
+  //       const res = await fetch("/api/travel-cards"); 
   //       if (!res.ok) {
   //         throw new Error("Failed to fetch travel data");
   //       }
