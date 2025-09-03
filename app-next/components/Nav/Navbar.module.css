@@ -25,7 +25,7 @@
 }
 
 .active {
-  color: blue;
+  color: rgb(255, 170, 0);
   /* font-weight: bold; */
   text-decoration: none;
   font-weight: 500;

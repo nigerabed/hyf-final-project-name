@@ -1,8 +1,9 @@
 import HomePage from "@/components/HomePage/HomePage";
-import Card from "@/components/Card/Card";
 import TravelCards from "@/components/TravelCards/TravelCards";
 import Destination from "@/components/Destination/Destination";
-import Community from "@/components/Community/Community";
+import BlogSection from "@/components/BlogSection/BlogSection";
+import Comment from "@/components/Comment/Comment";
+import Details from "@/components/Details/Details";
 
 export default function Home() {
   return (
@@ -13,11 +14,13 @@ export default function Home() {
       <section id="trips">
         <TravelCards />
       </section>
+      <section id="community">
+        <BlogSection />
+      </section>
+      <Details />
+      <Comment />
       <section id="destination">
         <Destination />
-      </section>
-      <section id="community">
-        <Community />
       </section>
     </>
   );

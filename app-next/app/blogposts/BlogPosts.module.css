@@ -1,0 +1,44 @@
+.blogPostsPage {
+  padding: 40px 0;
+}
+
+.heading {
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 30px;
+ 
+}
+
+.gridContainer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.backLink{
+    text-decoration: none;
+    color: #549262;
+    font-weight: bold;
+    font-size: 1.2em;
+   
+    /* margin-bottom: 1.5em; */
+}
+.blogHeading{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.blogPostsSection{
+margin-top: 5em;
+}
+.backButton {
+  display: inline-flex;       
+  align-items: center;        
+  gap: 0.4em;                  
+}
+
+.backButton svg {
+  width: 1.2em;                
+  height: 1.2em;
+  display: block;     
+  fill: gray    ;         
+}
