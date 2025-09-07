@@ -1,4 +1,4 @@
-# Better Travel - Full Stack Travel Platform
+# I DON'T KNOW WHAT I'M DOING
 
 A comprehensive travel platform built with Next.js frontend and Node.js backend, featuring tour management, user authentication, blog posts, and attractions.
 
