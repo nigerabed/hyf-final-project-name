@@ -101,6 +101,18 @@ export async function seed(knex) {
       }
     }
     try {
+      // Make plain INSERT ... VALUES (...) idempotent by adding ON CONFLICT DO NOTHING
+      // when it doesn't already contain an ON CONFLICT or is an INSERT ... SELECT.
+      const insertValuesRegex = /^INSERT\s+INTO\s+[^\(]+\([^\)]+\)\s+VALUES\s*\(/ims;
+      const hasOnConflict = /ON\s+CONFLICT/ims.test(stmt);
+      if (insertValuesRegex.test(stmt) && !hasOnConflict) {
+        // Append ON CONFLICT DO NOTHING at the end of the statement if missing
+        stmt = stmt.trim();
+        if (!stmt.endsWith(';')) stmt = stmt + ';';
+        // Remove trailing semicolon before appending
+        stmt = stmt.replace(/;\s*$/, ' ON CONFLICT DO NOTHING;');
+      }
+
       // Run each statement separately so errors are easier to debug
       await knex.raw(stmt);
     } catch (err) {
