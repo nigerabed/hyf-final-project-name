@@ -106,7 +106,13 @@ export async function seed(knex) {
     // which can fail if the table already contains multiple rows with the same
     // name due to prior seed runs. Appending LIMIT 1 makes it a scalar value.
     try {
-      stmt = stmt.replace(/\(SELECT\s+id\s+FROM\s+travel_plans\s+WHERE\s+([^)]+)\)/gmi, '(SELECT id FROM travel_plans WHERE $1 LIMIT 1)');
+      // Add LIMIT 1 to subqueries that select an id from another table so they
+      // become scalar expressions. Use a non-greedy match to handle multi-line
+      // WHERE clauses and different table names. Skip if LIMIT already present.
+      stmt = stmt.replace(/\(\s*SELECT\s+id\s+FROM\s+([a-z0-9_]+)\b([\s\S]*?)\)/gmi, (match, table, inner) => {
+        if (/LIMIT\s+\d+/i.test(inner)) return match; // already has LIMIT
+        return `(SELECT id FROM ${table}${inner} LIMIT 1)`;
+      });
     } catch (e) {
       // ignore regex replacement errors; proceed with original statement
     }
