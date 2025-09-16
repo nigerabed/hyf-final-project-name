@@ -36,10 +36,21 @@ import adminModerationRouter from "./routers/admin/moderation.js";
 
 const app = express();
 
-// CORS configuration for frontend at localhost:3000
+// CORS configuration: read allowed frontend origin(s) from FRONTEND_URL
+// FRONTEND_URL can be a single origin or a comma-separated list of origins.
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const allowedOrigins = FRONTEND_URL.split(",").map((o) => o.trim());
 app.use(cors({
-  origin: "http://localhost:3000",
-  credentials: true
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile clients or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy: Origin not allowed'));
+    }
+  },
+  credentials: true,
 }));
 const PORT = process.env.PORT || 3001;
 
