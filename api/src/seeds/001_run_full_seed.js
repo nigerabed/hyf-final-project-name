@@ -36,8 +36,70 @@ export async function seed(knex) {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // Detect users.id column type so we can adapt the seed when necessary.
+  // Some older deployments created `users.id` as a serial integer. The
+  // mock_data.sql assumes UUIDs (uses gen_random_uuid()). If the DB has an
+  // integer primary key we must remove the `id` column and the gen_random_uuid()
+  // value from the INSERT INTO ... users (...) SELECT ... statements.
+  let usersIdIsInteger = false;
+  try {
+    const res = await knex.raw(
+      "SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS type FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 'users' AND a.attname = 'id' LIMIT 1"
+    );
+    if (res && res.rows && res.rows[0] && typeof res.rows[0].type === 'string') {
+      usersIdIsInteger = res.rows[0].type.startsWith('integer');
+    }
+  } catch (e) {
+    // ignore - we'll assume UUIDs by default
+  }
+
+  if (usersIdIsInteger) {
+    console.info('Detected users.id is integer; patching users INSERT statements to omit id values.');
+  }
+
   for (let i = 0; i < statements.length; i++) {
-    const stmt = statements[i];
+    let stmt = statements[i];
+
+    // If DB uses integer ids for users, adjust the users INSERT statements to
+    // remove the `id` column and the leading `gen_random_uuid()` value in the
+    // SELECT list. This keeps the seed compatible with older installs.
+    if (usersIdIsInteger) {
+      // Match an INSERT INTO users ( ... ) SELECT ... pattern (multi-line aware)
+      const insertUsersRegex = /INSERT\s+INTO\s+users\s*\(([^)]+)\)\s*SELECT\s/ims;
+      const m = stmt.match(insertUsersRegex);
+      if (m) {
+        const colsRaw = m[1];
+        const cols = colsRaw
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean);
+        // Remove any 'id' column (case-insensitive)
+        const colsFiltered = cols.filter((c) => c.toLowerCase() !== 'id');
+        // Rebuild columns section
+        const colsRepl = colsFiltered.join(', ');
+        // Remove the first SELECT expression if it is gen_random_uuid()
+        // We'll do a conservative replace of a leading gen_random_uuid() followed by a comma.
+        const selectPrefixRegex = /SELECT\s*gen_random_uuid\(\)\s*,/i;
+        if (selectPrefixRegex.test(stmt)) {
+          stmt = stmt.replace(insertUsersRegex, (full, _cols) => {
+            return full.replace(m[1], colsRepl);
+          });
+          stmt = stmt.replace(selectPrefixRegex, 'SELECT ');
+        } else {
+          // If we couldn't find the expected gen_random_uuid() pattern, still
+          // try to remove a leading uuid() like expression (safe-guard).
+          const altSelectPrefix = /SELECT\s*[^,]+\s*,/i;
+          if (altSelectPrefix.test(stmt)) {
+            stmt = stmt.replace(insertUsersRegex, (full, _cols) => {
+              return full.replace(m[1], colsRepl);
+            });
+            stmt = stmt.replace(altSelectPrefix, 'SELECT ');
+          } else {
+            console.warn('Could not safely rewrite users INSERT statement to remove id; leaving unchanged.');
+          }
+        }
+      }
+    }
     try {
       // Run each statement separately so errors are easier to debug
       await knex.raw(stmt);
