@@ -104,8 +104,9 @@ export async function seed(knex) {
       // Make plain INSERT ... VALUES (...) idempotent by adding ON CONFLICT DO NOTHING
       // when it doesn't already contain an ON CONFLICT or is an INSERT ... SELECT.
       const insertValuesRegex = /^INSERT\s+INTO\s+[^\(]+\([^\)]+\)\s+VALUES\s*\(/ims;
+      const insertSelectRegex = /^INSERT\s+INTO\s+[^\(]+\([^\)]+\)\s+SELECT\s/ims;
       const hasOnConflict = /ON\s+CONFLICT/ims.test(stmt);
-      if (insertValuesRegex.test(stmt) && !hasOnConflict) {
+      if ((insertValuesRegex.test(stmt) || insertSelectRegex.test(stmt)) && !hasOnConflict) {
         // Append ON CONFLICT DO NOTHING at the end of the statement if missing
         stmt = stmt.trim();
         if (!stmt.endsWith(';')) stmt = stmt + ';';
