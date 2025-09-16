@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import styles from "./HeroSection.module.css";
 
 const images = [
@@ -15,6 +16,7 @@ const images = [
 
 export default function HeroSection() {
   const [currentImage, setCurrentImage] = useState(0);
+  const [transitionImage, setTransitionImage] = useState(null);
 
   useEffect(() => {
     if (currentImage >= images.length) {
@@ -22,23 +24,68 @@ export default function HeroSection() {
     }
   }, [images.length, currentImage]);
 
+  // No manual preloading required when using Next.js Image with priority/placeholder
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImage((prevImage) => (prevImage + 1) % images.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [images.length]);
+    let intervalId = null;
+    let timeoutId = null;
+    const start = () => {
+      intervalId = setInterval(() => {
+        const next = (currentImage + 1) % images.length;
+        // show transition layer with next image
+        setTransitionImage(next);
+        // after transition duration commit to next image and clear transitionImage
+        timeoutId = setTimeout(() => {
+          setCurrentImage(next);
+          setTransitionImage(null);
+        }, 1000); // match CSS transition duration
+      }, 4000);
+    };
+
+    start();
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentImage]);
 
   return (
-    <section
-      id="hero"
-      className={styles.hero}
-      style={{
-        backgroundImage: `url(${images[currentImage]})`,
-        transition: "background-image 1s ease-in-out",
-      }}
-    >
-      <div className={styles.overlay}>
+    <section id="hero" className={styles.hero}>
+      <div className={styles.bgWrapper} aria-hidden>
+        {/* Base layer: always shows the committed current image */}
+        <div className={`${styles.bgLayer} ${styles["bgLayer--visible"]}`}>
+          <Image
+            src={images[currentImage]}
+            alt=""
+            fill
+            priority={true}
+            placeholder="blur"
+            blurDataURL={`data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='9'></svg>`}
+            sizes="100vw"
+            style={{ objectFit: "cover", objectPosition: "center" }}
+          />
+        </div>
+
+        {/* Transition layer: appears when transitionImage is non-null and fades in over the base */}
+        <div className={`${styles.bgLayer} ${transitionImage !== null ? styles["bgLayer--visible"] : ""}`}>
+          {transitionImage !== null && (
+            <Image
+              src={images[transitionImage]}
+              alt=""
+              fill
+              priority={false}
+              placeholder="blur"
+              blurDataURL={`data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='9'></svg>`}
+              sizes="100vw"
+              style={{ objectFit: "cover", objectPosition: "center" }}
+            />
+          )}
+        </div>
+      </div>
+
+      <div className={styles.overlay} style={{ position: "relative", zIndex: 1 }}>
         <div className={styles.titleContainer}>
           <h1 className={styles.title}>Make Your Next Group Adventure Unforgettable</h1>
           <p className={styles.subTitle}>

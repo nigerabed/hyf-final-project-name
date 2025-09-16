@@ -10,6 +10,35 @@
   overflow: hidden;
 }
 
+/* Background wrapper contains two absolutely positioned layers that crossfade */
+.bgWrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background-color: #0f1720; /* fallback color to reduce flash */
+}
+
+.bgLayer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 1s ease-in-out;
+  opacity: 0;
+  /* Ensure the Image child covers the layer */
+  display: block;
+}
+
+.bgLayer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.bgLayer--visible {
+  opacity: 1;
+}
+
 .overlay {
   background: rgba(0, 0, 0, 0.5);
   display: flex;
