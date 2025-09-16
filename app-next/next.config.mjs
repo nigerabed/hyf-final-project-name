@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const nextConfig = {
+  // Ensure Next infers the correct workspace root when there are multiple lockfiles
+  outputFileTracingRoot: path.resolve(__dirname),
   images: {
     // allow Unsplash, Picsum and common placeholder hosts plus local backend
     remotePatterns: [
