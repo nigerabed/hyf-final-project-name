@@ -100,6 +100,16 @@ export async function seed(knex) {
         }
       }
     }
+
+    // Make SELECT subqueries that expect a single id safe by adding LIMIT 1.
+    // This targets patterns like (SELECT id FROM travel_plans WHERE name = '...')
+    // which can fail if the table already contains multiple rows with the same
+    // name due to prior seed runs. Appending LIMIT 1 makes it a scalar value.
+    try {
+      stmt = stmt.replace(/\(SELECT\s+id\s+FROM\s+travel_plans\s+WHERE\s+([^)]+)\)/gmi, '(SELECT id FROM travel_plans WHERE $1 LIMIT 1)');
+    } catch (e) {
+      // ignore regex replacement errors; proceed with original statement
+    }
     try {
       // Make plain INSERT ... VALUES (...) idempotent by adding ON CONFLICT DO NOTHING
       // when it doesn't already contain an ON CONFLICT or is an INSERT ... SELECT.
