@@ -65,28 +65,40 @@ app.use(express.static("public"));
 
 
 // --- Optional: Response Body Logger for Debugging ---
-const logResponseBody = (req, res, next) => {
-  const oldSend = res.send;
-  res.send = function (body) {
-    const contentType = res.get("Content-Type");
-    if (contentType && contentType.includes("application/json")) {
-      console.log("<<-- RESPONSE BODY -->>");
-      try {
-        console.dir(JSON.parse(body), { depth: null, colors: true });
-      } catch (e) {
-        // Not a JSON response, ignore.
+// Enable by setting DEBUG_RESPONSE=true in the environment (off in production by default)
+if (process.env.DEBUG_RESPONSE === 'true') {
+  const logResponseBody = (req, res, next) => {
+    const oldSend = res.send;
+    res.send = function (body) {
+      const contentType = res.get("Content-Type");
+      if (contentType && contentType.includes("application/json")) {
+        console.log("<<-- RESPONSE BODY -->>");
+        try {
+          console.dir(JSON.parse(body), { depth: null, colors: true });
+        } catch (e) {
+          // Not a JSON response, ignore.
+        }
+        console.log("<<------------------->>");
       }
-      console.log("<<------------------->>");
-    }
-    return oldSend.apply(res, arguments);
+      return oldSend.apply(res, arguments);
+    };
+    next();
   };
-  next();
-};
-app.use(logResponseBody);
+  app.use(logResponseBody);
+}
 
 // --- API ROUTE SETUP ---
 // Health Check
 app.use("/api/health", healthCheckRoute);
+
+// Root route: friendly JSON so GET / returns a small message instead of 404
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    api: '/api',
+    message: 'API service is running. See /api/health for health status.'
+  });
+});
 
 // Public Routes
 app.use("/api/auth", authRouter);
