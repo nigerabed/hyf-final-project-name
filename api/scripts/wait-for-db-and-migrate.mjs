@@ -10,13 +10,19 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function tryMigrate(attempt = 1) {
   try {
     console.log(`Attempt ${attempt}: running migrations...`);
-    const { stdout, stderr } = await execAsync('npx knex migrate:latest --knexfile ./knexfile.js');
-    if (stdout) console.log(stdout);
-    if (stderr) console.error(stderr);
+    const { stdout: mOut, stderr: mErr } = await execAsync('npx knex migrate:latest --knexfile ./knexfile.js');
+    if (mOut) console.log(mOut);
+    if (mErr) console.error(mErr);
     console.log('Migrations applied successfully.');
+
+    console.log('Running seeds...');
+    const { stdout: sOut, stderr: sErr } = await execAsync('npx knex seed:run --knexfile ./knexfile.js');
+    if (sOut) console.log(sOut);
+    if (sErr) console.error(sErr);
+    console.log('Seeds applied successfully.');
     process.exit(0);
   } catch (err) {
-    console.error(`Migrate attempt ${attempt} failed: ${err.message}`);
+    console.error(`Migrate/seed attempt ${attempt} failed: ${err.message}`);
     if (attempt >= 8) {
       console.error('Exceeded retry attempts for migrations. Exiting with failure.');
       process.exit(1);
