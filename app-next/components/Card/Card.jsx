@@ -9,6 +9,13 @@ import { useRouter } from "next/navigation";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export default function Card({ card, onFavoriteChange, viewLink, size = "regular" }) {
+  // Debug: log when a Card is rendered to help trace duplicate-render issues
+  try {
+    // eslint-disable-next-line no-console
+    console.log("Render Card:", card?.id, card?.name);
+  } catch (e) {
+    /* ignore logging errors */
+  }
   // Only provide `initial` when the backend explicitly marks it truthy.
   // If backend doesn't provide a positive favourite flag, allow hook to fall back to localStorage.
   const initialFav = card.favourite ? true : undefined;

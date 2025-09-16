@@ -33,7 +33,15 @@ export default function ToursSection() {
         else if (Array.isArray(data)) list = data;
         else if (Array.isArray(data.tours?.items)) list = data.tours.items; // defensive
 
-        setTravelCardData(list);
+        // Debug log incoming ids and dedupe by id defensively
+        try {
+          console.log("ToursSection: raw ids", list.map((t) => t && t.id));
+        } catch (e) {
+          /* ignore logging issues */
+        }
+        const deduped = Array.isArray(list) ? list.filter((v, i, a) => a.findIndex((t) => String(t?.id) === String(v?.id)) === i) : list;
+
+        setTravelCardData(deduped);
       } catch (err) {
         if (err.name !== "AbortError") setError(err.message || String(err));
       } finally {

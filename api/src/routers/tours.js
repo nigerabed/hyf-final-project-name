@@ -116,8 +116,16 @@ router.get("/", async (req, res) => {
     // Execute the query
     const tours = await query;
 
+    // Defensive: dedupe server-side by id in case joins or seed issues produced duplicates
+    const dedupedTours = Array.isArray(tours)
+      ? tours.filter((v, i, a) => a.findIndex((t) => String(t?.id) === String(v?.id)) === i)
+      : tours;
+    if (Array.isArray(tours) && dedupedTours.length !== tours.length) {
+      console.warn(`Tours API: removed ${tours.length - dedupedTours.length} duplicate tour rows before responding`);
+    }
+
     // Transform the data to match the expected response format
-    const transformedTours = tours.map((tour) => ({
+    const transformedTours = dedupedTours.map((tour) => ({
       id: tour.id,
       name: tour.name,
       destination: tour.description, // Using description as destination for now

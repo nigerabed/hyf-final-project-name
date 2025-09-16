@@ -52,6 +52,18 @@ export default function TripPage() {
       else if (Array.isArray(data)) list = data;
       else if (Array.isArray(data.tours?.items)) list = data.tours.items;
 
+      // Debug: log incoming list ids to help root-cause duplication issues
+      try {
+        console.log("fetchTours: raw list ids", list.map((t) => t && t.id));
+      } catch (e) {
+        /* ignore logging failures */
+      }
+
+      // Deduplicate by id as a defensive measure (keeps first occurrence)
+      const dedupedList = Array.isArray(list)
+        ? list.filter((v, i, a) => a.findIndex((t) => String(t?.id) === String(v?.id)) === i)
+        : list;
+
       // pagination info from API
       const apiTotalPages =
         data.totalPages ??
@@ -61,7 +73,7 @@ export default function TripPage() {
       setTotalPages(Number.isFinite(Number(apiTotalPages)) ? Number(apiTotalPages) : 1);
       setTotalItems(Number.isFinite(Number(apiTotalItems)) ? Number(apiTotalItems) : list.length);
 
-      setTours(list);
+      setTours(dedupedList);
 
       if (Array.isArray(data.tour_destinations)) {
         const uniqueDest = [
@@ -71,7 +83,7 @@ export default function TripPage() {
       } else {
         const derived = [
           ...new Set(
-            list.flatMap((t) => {
+            dedupedList.flatMap((t) => {
               if (Array.isArray(t.tour_destinations))
                 return t.tour_destinations.map((d) => `${d.city_name}, ${d.country_name}`);
               if (t.destination) return [t.destination];
