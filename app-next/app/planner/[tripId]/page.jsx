@@ -5,17 +5,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import styles from "./planner.module.css";
-import CreateTripForm from "../../../components/planner/CreateTripForm/CreateTripForm";
-import ProgressTracker from "../../../components/planner/ProgressTracker/ProgressTracker";
-import Sidebar from "../../../components/planner/Sidebar/Sidebar";
-import MainArea from "../../../components/planner/MainArea/MainArea";
-import BookingView from "../../../components/planner/BookingView/BookingView";
-import mockData from "../../../components/planner/mockData";
-import EmptyState from "../../../components/planner/MainArea/EmptyState";
-import SuggestionGrid from "../../../components/planner/MainArea/SuggestionGrid";
-import ItineraryDisplay from "../../../components/planner/MainArea/ItineraryDisplay";
-import AccommodationDisplay from "../../../components/planner/MainArea/AccommodationDisplay";
-import FlightDisplay from "../../../components/planner/MainArea/FlightDisplay";
+import CreateTripForm from "../../../components/Planner/CreateTripForm/CreateTripForm";
+import ProgressTracker from "../../../components/Planner/ProgressTracker/ProgressTracker";
+import Sidebar from "../../../components/Planner/Sidebar/Sidebar";
+import MainArea from "../../../components/Planner/MainArea/MainArea";
+import BookingView from "../../../components/Planner/BookingView/BookingView";
+import mockData from "../../../components/Planner/mockData";
+import EmptyState from "../../../components/Planner/MainArea/EmptyState";
+import SuggestionGrid from "../../../components/Planner/MainArea/SuggestionGrid";
+import ItineraryDisplay from "../../../components/Planner/MainArea/ItineraryDisplay";
+import AccommodationDisplay from "../../../components/Planner/MainArea/AccommodationDisplay";
+import FlightDisplay from "../../../components/Planner/MainArea/FlightDisplay";
 
 export default function PlannerPage() {
   const { tripId } = useParams();
@@ -51,19 +51,26 @@ export default function PlannerPage() {
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/itinerary`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        ),
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/itinerary`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        ),
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
 
       const [tripRes, shortlistRes, itineraryRes, chatRes] = res;
-      if (!tripRes.ok || !shortlistRes.ok) throw new Error("Failed to load trip data.");
+      if (!tripRes.ok || !shortlistRes.ok)
+        throw new Error("Failed to load trip data.");
 
       const tripResult = await tripRes.json();
       const shortlistResult = await shortlistRes.json();
@@ -101,14 +108,17 @@ export default function PlannerPage() {
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to create trip");
@@ -234,7 +244,9 @@ export default function PlannerPage() {
       setPlanningPhase("itinerary");
     } catch (error) {
       console.error("Error generating itinerary:", error);
-      alert("Could not generate the itinerary. Please ensure items are shortlisted and voted on.");
+      alert(
+        "Could not generate the itinerary. Please ensure items are shortlisted and voted on."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -281,16 +293,19 @@ export default function PlannerPage() {
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          selected_accommodation_id: selectedAccommodation.id,
-        }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            selected_accommodation_id: selectedAccommodation.id,
+          }),
+        }
+      );
       if (!response.ok) throw new Error("Failed to save hotel selection.");
       setPlanningPhase("flights");
     } catch (error) {
@@ -330,17 +345,20 @@ export default function PlannerPage() {
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/bookings/custom-trip`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          trip_id: tripId,
-          num_travelers: collaborators.length || 1,
-        }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/bookings/custom-trip`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            trip_id: tripId,
+            num_travelers: collaborators.length || 1,
+          }),
+        }
+      );
       if (!response.ok) throw new Error("Booking failed.");
       alert("Booking successful! Your trip is confirmed.");
       window.location.href = "/planner/new";
@@ -355,14 +373,17 @@ export default function PlannerPage() {
   const handleSendMessage = async (messageContent) => {
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: messageContent }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: messageContent }),
+        }
+      );
       if (!response.ok) throw new Error("Message failed to send.");
       fetchTripData();
     } catch (error) {
@@ -432,7 +453,10 @@ export default function PlannerPage() {
   if (view === "create") {
     return (
       <main className={styles.createFormLayout}>
-        <CreateTripForm onTripCreate={handleTripCreated} isLoading={isLoading} />
+        <CreateTripForm
+          onTripCreate={handleTripCreated}
+          isLoading={isLoading}
+        />
       </main>
     );
   }
@@ -462,7 +486,10 @@ export default function PlannerPage() {
           </div>
         </div>
 
-        <ProgressTracker currentPhase={planningPhase} onPhaseChange={setPlanningPhase} />
+        <ProgressTracker
+          currentPhase={planningPhase}
+          onPhaseChange={setPlanningPhase}
+        />
 
         <div className={styles.plannerContent}>
           <aside className={styles.sidebarContainer}>
