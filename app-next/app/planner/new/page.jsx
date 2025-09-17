@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import CreateTripForm from "../../../components/planner/CreateTripForm/CreateTripForm";
+import CreateTripForm from "../../../components/Planner/CreateTripForm/CreateTripForm";
 import styles from "../[tripId]/planner.module.css";
 
 export default function NewPlannerPage() {
