@@ -69,7 +69,9 @@ export default function HeroSection() {
         </div>
 
         {/* Transition layer: appears when transitionImage is non-null and fades in over the base */}
-        <div className={`${styles.bgLayer} ${transitionImage !== null ? styles["bgLayer--visible"] : ""}`}>
+        <div
+          className={`${styles.bgLayer} ${transitionImage !== null ? styles["bgLayer--visible"] : ""}`}
+        >
           {transitionImage !== null && (
             <Image
               src={images[transitionImage]}
