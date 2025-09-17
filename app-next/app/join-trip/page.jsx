@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function JoinTripPage() {
+function JoinTripContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState("Joining trip...");
   const [error, setError] = useState("");
@@ -58,5 +58,17 @@ export default function JoinTripPage() {
       <h1>{status}</h1>
       {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
+  );
+}
+
+export default function JoinTripPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ padding: "4rem", textAlign: "center" }}>Loading...</div>
+      }
+    >
+      <JoinTripContent />
+    </Suspense>
   );
 }
