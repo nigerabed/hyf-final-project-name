@@ -5,24 +5,29 @@ import { authenticateToken } from "../middleware/auth.js";
 const router = express.Router({ mergeParams: true });
 router.use(authenticateToken);
 
-// Helper to check ownership of the parent trip
-const checkTripOwnership = async (req, res, next) => {
+// Helper to check ownership or collaboration of the parent trip
+const checkTripPermissions = async (req, res, next) => {
   const { tripId } = req.params;
   const userId = req.user.id || req.user.sub;
-  const trip = await knex("travel_plans")
-    .where({ id: tripId, owner_id: userId })
-    .first();
+  const trip = await knex("travel_plans").where({ id: tripId }).first();
   if (!trip) {
+    return res.status(404).json({ error: "Trip not found." });
+  }
+  const isOwner = trip.owner_id === userId;
+  const isCollaborator = await knex("trip_collaborators")
+    .where({ trip_id: tripId, user_id: userId })
+    .first();
+  if (!isOwner && !isCollaborator) {
     return res
-      .status(404)
-      .json({ error: "Trip not found or you do not have permission." });
+      .status(403)
+      .json({ error: "You do not have permission for this trip." });
   }
   req.trip = trip;
   next();
 };
 
 // POST a new flight to a trip
-router.post("/", checkTripOwnership, async (req, res) => {
+router.post("/", checkTripPermissions, async (req, res) => {
   const { tripId } = req.params;
   const {
     departs_from_destination_id,
@@ -38,9 +43,9 @@ router.post("/", checkTripOwnership, async (req, res) => {
   }
 
   try {
-    const [newFlight] = await knex("tour_flights")
+    const [newFlight] = await knex("travel_plan_flights")
       .insert({
-        tour_id: tripId,
+        travel_plan_id: tripId,
         departs_from_destination_id,
         arrives_at_destination_id,
         airline,
@@ -58,11 +63,11 @@ router.post("/", checkTripOwnership, async (req, res) => {
 });
 
 // DELETE a flight from a trip
-router.delete("/:flightId", checkTripOwnership, async (req, res) => {
+router.delete("/:flightId", checkTripPermissions, async (req, res) => {
   const { tripId, flightId } = req.params;
   try {
-    const deleteCount = await knex("tour_flights")
-      .where({ id: flightId, tour_id: tripId })
+    const deleteCount = await knex("travel_plan_flights")
+      .where({ id: flightId, travel_plan_id: tripId })
       .del();
     if (deleteCount === 0) {
       return res.status(404).json({ error: "Flight not found." });

@@ -22,6 +22,7 @@ export default function Sidebar({
   onSelectAccommodations,
   onSelectFlights,
   onFinalize,
+  onGoToBooking,
 }) {
   const renderModule = () => {
     switch (phase) {
@@ -60,7 +61,10 @@ export default function Sidebar({
         );
       case "flights":
         return (
-          <FlightSelector selected={selectedFlight} onFinalize={onFinalize} />
+          <FlightSelector
+            selected={selectedFlight}
+            onGoToBooking={onGoToBooking}
+          />
         );
       default:
         return null;

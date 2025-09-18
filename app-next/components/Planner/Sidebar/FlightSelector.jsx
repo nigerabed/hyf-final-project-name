@@ -1,7 +1,7 @@
 import styles from "./Sidebar.module.css";
 import Button from "../Button/Button";
 
-export default function FlightSelector({ selected, onFinalize }) {
+export default function FlightSelector({ selected, onGoToBooking }) {
   return (
     <div className={styles.sidebarModule}>
       <h3>Selected Flights</h3>
@@ -15,7 +15,7 @@ export default function FlightSelector({ selected, onFinalize }) {
           <li>No flight selected yet.</li>
         )}
       </ul>
-      <Button onClick={onFinalize} disabled={!selected}>
+      <Button onClick={onGoToBooking} disabled={!selected}>
         Finalize & Book
       </Button>
     </div>
