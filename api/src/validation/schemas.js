@@ -28,47 +28,30 @@ export const registerSchema = z
       .min(1, "Username is required")
       .min(3, "Username must be at least 3 characters")
       .max(20, "Username must be less than 20 characters")
-      .regex(
-        /^[a-zA-Z0-9_]+$/,
-        "Username can only contain letters, numbers, and underscores"
-      )
-      .refine(
-        (username) => !username.startsWith("_") && !username.endsWith("_"),
-        {
-          message: "Username cannot start or end with underscore",
-        }
-      ),
+      .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores")
+      .refine((username) => !username.startsWith("_") && !username.endsWith("_"), {
+        message: "Username cannot start or end with underscore",
+      }),
 
     password: z
       .string()
       .min(1, "Password is required")
       .min(8, "Password must be at least 8 characters")
       .max(100, "Password must be less than 100 characters")
-      .regex(
-        /^(?=.*[a-z])/,
-        "Password must contain at least one lowercase letter"
-      )
-      .regex(
-        /^(?=.*[A-Z])/,
-        "Password must contain at least one uppercase letter"
-      )
+      .regex(/^(?=.*[a-z])/, "Password must contain at least one lowercase letter")
+      .regex(/^(?=.*[A-Z])/, "Password must contain at least one uppercase letter")
       .regex(/^(?=.*\d)/, "Password must contain at least one number")
       .regex(
         /^[a-zA-Z\d@$!%*?&]+$/,
         "Password can only contain letters, numbers, and special characters (@$!%*?&)"
       ),
 
-    password_confirmation: z
-      .string()
-      .min(1, "Password confirmation is required"),
+    password_confirmation: z.string().min(1, "Password confirmation is required"),
 
     mobile: z
       .string()
       .min(1, "Mobile number is required")
-      .regex(
-        /^\+?[\d\s\-\(\)]{10,15}$/,
-        "Please enter a valid mobile number (10-15 digits)"
-      ),
+      .regex(/^\+?[\d\s\-\(\)]{10,15}$/, "Please enter a valid mobile number (10-15 digits)"),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: "Passwords do not match",
@@ -77,9 +60,7 @@ export const registerSchema = z
 
 // Login schema
 export const loginSchema = z.object({
-  login_identifier: z
-    .string()
-    .min(1, "Please enter your email, username, or mobile number"),
+  login_identifier: z.string().min(1, "Please enter your email, username, or mobile number"),
 
   password: z.string().min(1, "Password is required"),
 });
@@ -103,15 +84,9 @@ export const profileUpdateSchema = z.object({
   mobile: z
     .string()
     .min(1, "Mobile number is required")
-    .regex(
-      /^\+?[\d\s\-\(\)]{10,15}$/,
-      "Please enter a valid mobile number (10-15 digits)"
-    ),
+    .regex(/^\+?[\d\s\-\(\)]{10,15}$/, "Please enter a valid mobile number (10-15 digits)"),
 
-  profile_image: z
-    .string()
-    .url("Please enter a valid URL for profile image")
-    .optional(),
+  profile_image: z.string().url("Please enter a valid URL for profile image").optional(),
 });
 
 // Password change schema
@@ -124,23 +99,15 @@ export const passwordChangeSchema = z
       .min(1, "New password is required")
       .min(8, "New password must be at least 8 characters")
       .max(100, "New password must be less than 100 characters")
-      .regex(
-        /^(?=.*[a-z])/,
-        "New password must contain at least one lowercase letter"
-      )
-      .regex(
-        /^(?=.*[A-Z])/,
-        "New password must contain at least one uppercase letter"
-      )
+      .regex(/^(?=.*[a-z])/, "New password must contain at least one lowercase letter")
+      .regex(/^(?=.*[A-Z])/, "New password must contain at least one uppercase letter")
       .regex(/^(?=.*\d)/, "New password must contain at least one number")
       .regex(
         /^[a-zA-Z\d@$!%*?&]+$/,
         "New password can only contain letters, numbers, and special characters (@$!%*?&)"
       ),
 
-    new_password_confirmation: z
-      .string()
-      .min(1, "Password confirmation is required"),
+    new_password_confirmation: z.string().min(1, "Password confirmation is required"),
   })
   .refine((data) => data.new_password === data.new_password_confirmation, {
     message: "New passwords do not match",
@@ -193,8 +160,7 @@ export const favoriteSchema = z.object({
   item_id: z.string().uuid("A valid item ID is required."),
   item_type: z.enum(["tour", "post", "attraction"], {
     required_error: "Item type is required.",
-    invalid_type_error:
-      "Item type must be one of 'tour', 'post', or 'attraction'.",
+    invalid_type_error: "Item type must be one of 'tour', 'post', or 'attraction'.",
   }),
 });
 
@@ -279,6 +245,44 @@ export const adminUserUpdateSchema = z.object({
     .optional(),
 });
 
+// Admin create user schema - used by admin endpoints to create users
+export const adminCreateUserSchema = z.object({
+  first_name: z
+    .string()
+    .min(1, "First name is required")
+    .min(2, "First name must be at least 2 characters")
+    .max(50, "First name must be less than 50 characters")
+    .regex(/^[a-zA-Z\s]+$/, "First name can only contain letters and spaces"),
+
+  last_name: z
+    .string()
+    .min(1, "Last name is required")
+    .min(2, "Last name must be at least 2 characters")
+    .max(50, "Last name must be less than 50 characters")
+    .regex(/^[a-zA-Z\s]+$/, "Last name can only contain letters and spaces"),
+
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address")
+    .max(100),
+
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(20, "Username must be less than 20 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
+
+  mobile: z
+    .string()
+    .min(1, "Mobile number is required")
+    .regex(/^\+?[\d\s\-\(\)]{10,15}$/, "Please enter a valid mobile number (10-15 digits)"),
+
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
+
+  role: z.enum(["user", "admin", "moderator"]).optional(),
+});
+
 // Schema for an admin CREATING a tour
 export const adminTourCreateSchema = z.object({
   name: z
@@ -289,18 +293,12 @@ export const adminTourCreateSchema = z.object({
     .string({ required_error: "A description is required." })
     .min(10, "The description must be at least 10 characters long."),
   start_date: z.string().optional().nullable(),
-  duration_days: z
-    .number({ required_error: "Please provide the tour's duration." })
-    .int()
-    .min(1),
+  duration_days: z.number({ required_error: "Please provide the tour's duration." }).int().min(1),
   price_minor: z.number({ required_error: "Please set a price." }).int().min(0),
   currency_code: z
     .string({ required_error: "A currency code is required." })
     .length(3, "The currency code must be 3 characters."),
-  capacity: z
-    .number({ required_error: "Please specify the tour capacity." })
-    .int()
-    .min(1),
+  capacity: z.number({ required_error: "Please specify the tour capacity." }).int().min(1),
   cover_image_url: z
     .string()
     .url("Please provide a valid URL for the cover image.")
@@ -311,10 +309,7 @@ export const adminTourCreateSchema = z.object({
       z.object({
         city_name: z.string().min(1, "City name is required."),
         country_name: z.string().min(1, "Country name is required."),
-        duration_days: z
-          .number()
-          .int()
-          .min(1, "Duration must be at least 1 day."),
+        duration_days: z.number().int().min(1, "Duration must be at least 1 day."),
       })
     )
     .optional(),
@@ -329,9 +324,7 @@ export const adminPostSchema = z.object({
     .string({ required_error: "A title is required for the post." })
     .min(3, "The title must be at least 3 characters long.")
     .max(255, "The title cannot be more than 255 characters."),
-  content: z
-    .string()
-    .min(10, "The post content must be at least 10 characters long."),
+  content: z.string().min(10, "The post content must be at least 10 characters long."),
   category: z.string().optional().nullable(),
   cover_image_url: z.string().optional().nullable(),
 });
@@ -342,9 +335,7 @@ export const adminAttractionSchema = z.object({
     .string({ required_error: "A title is required for the attraction." })
     .min(3, "The title must be at least 3 characters long.")
     .max(255, "The title cannot be more than 255 characters."),
-  content: z
-    .string()
-    .min(10, "The content must be at least 10 characters long."),
+  content: z.string().min(10, "The content must be at least 10 characters long."),
   location: z.string().optional().nullable(),
   type: z.string().optional().nullable(),
   cover_image_url: z.string().optional().nullable(),
