@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./Login.module.css";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -16,8 +16,9 @@ const images = [
   "/hero-images/rebe-adelaida-zunQwMy5B6M-unsplash.webp",
 ];
 
-export default function Login() {
+function LoginComponent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLogin, setIsLogin] = useState(true);
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
@@ -30,42 +31,26 @@ export default function Login() {
   const toastTimerRef = useRef(null);
 
   useEffect(() => {
-    if (currentImage >= images.length) {
-      setCurrentImage(0);
-    }
-  }, [images.length, currentImage]);
-
-  useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImage((prevImage) => (prevImage + 1) % images.length);
     }, 4000);
     return () => clearInterval(interval);
-  }, [images.length]);
+  }, []);
 
-  // Clear form fields and messages when the page mounts to avoid showing
-  // previously-entered credentials (browser back navigation or autofill).
   useEffect(() => {
-    try {
-      if (loginFormRef?.current) loginFormRef.current.reset();
-    } catch (e) {}
-    try {
-      if (registerFormRef?.current) registerFormRef.current.reset();
-    } catch (e) {}
-    // clear any success/error banners so forms appear empty/fresh
+    if (loginFormRef?.current) loginFormRef.current.reset();
+    if (registerFormRef?.current) registerFormRef.current.reset();
     setLoginSuccess("");
     setRegisterSuccess("");
     setLoginError("");
     setRegisterError("");
-    // cleanup toast timer on unmount
     return () => {
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
-        toastTimerRef.current = null;
       }
     };
   }, []);
 
-  // helper to safely parse JSON or return text
   async function safeParseResponse(res) {
     const text = await res.text();
     try {
@@ -75,7 +60,16 @@ export default function Login() {
     }
   }
 
-  // Login function
+  const handleAuthSuccess = (parsedBody) => {
+    const redirectUrl = searchParams.get("redirect");
+    if (redirectUrl) {
+      router.push(decodeURIComponent(redirectUrl));
+    } else {
+      const userRole = parsedBody?.user?.role || "user";
+      router.push(userRole === "admin" ? "/admin" : "/user");
+    }
+  };
+
   async function submitLogin(data, event) {
     try {
       setLoginError("");
@@ -91,71 +85,41 @@ export default function Login() {
       const parsed = await safeParseResponse(res);
 
       if (!res.ok) {
-        // prefer structured message if available, otherwise show raw text
         const msg = parsed.body?.message || parsed.raw || `HTTP ${res.status}`;
         setLoginError(msg);
         return;
       }
 
-      // success: parsed.body expected
-      setLoginError("");
-      setLoginSuccess(parsed.body?.message || "Welcome! You are now logged in.");
-
-      // persist token and user data so other pages can use it
+      setLoginSuccess(
+        parsed.body?.message || "Welcome! You are now logged in."
+      );
       if (parsed.body?.token) {
-        try {
-          localStorage.setItem("token", parsed.body.token);
-        } catch (e) {
-          console.warn("Failed to persist token to localStorage", e);
-        }
-      }
-      // persist user object as well so Header and other components can read it
-      if (parsed.body?.user) {
-        try {
-          localStorage.setItem("user", JSON.stringify(parsed.body.user));
-        } catch (e) {
-          console.warn("Failed to persist user data to localStorage", e);
-        }
+        localStorage.setItem("token", parsed.body.token);
       }
 
-      // try to reset the submitted form (both direct event target and form ref)
-      try {
-        event?.target?.reset?.();
-      } catch (e) {}
-      try {
-        if (loginFormRef?.current) loginFormRef.current.reset();
-      } catch (e) {}
-      // show a brief toast so the user sees the success message, then navigate
-      try {
-        const userRole = parsed.body?.user?.role || "user";
-        // clear any existing timer
-        if (toastTimerRef.current) {
-          clearTimeout(toastTimerRef.current);
-          toastTimerRef.current = null;
-        }
-        setShowToast(true);
-        // delay navigation slightly so toast is visible
-        toastTimerRef.current = setTimeout(() => {
-          setShowToast(false);
-          try {
-            if (userRole === "admin") {
-              router.push("/admin");
-            } else {
-              router.push("/user");
-            }
-          } catch (e) {
-            /* ignore navigation errors in non-browser tests */
-          }
-        }, 1000);
-      } catch (e) {
-        /* ignore navigation errors in non-browser tests */
+      // Store user data including role for redirect logic
+
+      // persist user object as well so Header and other components can read it
+
+      if (parsed.body?.user) {
+        localStorage.setItem("user", JSON.stringify(parsed.body.user));
       }
+
+      if (event.target) event.target.reset();
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+      setShowToast(true);
+      toastTimerRef.current = setTimeout(() => {
+        setShowToast(false);
+        handleAuthSuccess(parsed.body);
+      }, 1000);
     } catch (error) {
       setLoginError(error.message || "An error occurred");
     }
   }
 
-  // Registration function
   async function submitRegistration(data, event) {
     try {
       setRegisterError("");
@@ -176,65 +140,38 @@ export default function Login() {
       const parsed = await safeParseResponse(res);
 
       if (!res.ok) {
-        // handle structured validation details or fallback to raw HTML/text
         if (parsed.body?.details && Array.isArray(parsed.body.details)) {
-          setRegisterError(parsed.body.details.map((d) => `${d.field}: ${d.message}`).join("\n"));
+          setRegisterError(
+            parsed.body.details
+              .map((d) => `${d.field}: ${d.message}`)
+              .join("\n")
+          );
         } else {
-          const msg = parsed.body?.message || parsed.raw || `HTTP ${res.status}`;
+          const msg =
+            parsed.body?.message || parsed.raw || `HTTP ${res.status}`;
           setRegisterError(msg);
         }
         return;
       }
 
-      setRegisterError("");
-      setRegisterSuccess(parsed.body?.message || "Registration successful! You can now log in.");
+      setRegisterSuccess(
+        parsed.body?.message || "Registration successful! You can now log in."
+      );
 
-      // persist token and user data if returned
       if (parsed.body?.token) {
-        try {
-          localStorage.setItem("token", parsed.body.token);
-        } catch (e) {
-          console.warn("Failed to persist token to localStorage", e);
-        }
+        localStorage.setItem("token", parsed.body.token);
       }
-
-      // Store user data including role for redirect logic
       if (parsed.body?.user) {
-        try {
-          localStorage.setItem("user", JSON.stringify(parsed.body.user));
-        } catch (e) {
-          console.warn("Failed to persist user data to localStorage", e);
-        }
+        localStorage.setItem("user", JSON.stringify(parsed.body.user));
       }
 
-      event.target.reset();
-
-      // Redirect based on user role (new users are typically "user" role)
-
-      // reset the registration form reliably
-      try {
-        event?.target?.reset?.();
-      } catch (e) {}
-      try {
-        if (registerFormRef?.current) registerFormRef.current.reset();
-      } catch (e) {}
-
-      try {
-        const userRole = parsed.body?.user?.role || "user";
-        if (userRole === "admin") {
-          router.push("/admin");
-        } else {
-          router.push("/user");
-        }
-      } catch (e) {
-        /* ignore navigation errors in non-browser tests */
-      }
+      if (event.target) event.target.reset();
+      handleAuthSuccess(parsed.body);
     } catch (error) {
       setRegisterError(error.message || "An error occurred");
     }
   }
 
-  // handlers unchanged...
   function handleLoginSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -256,7 +193,6 @@ export default function Login() {
         backgroundImage: `url(${images[currentImage]})`,
       }}
     >
-      {/* Inline toast */}
       {showToast && (
         <div className={styles.toastWrapper}>
           <div className={styles.toastBox} role="status" aria-live="polite">
@@ -266,7 +202,10 @@ export default function Login() {
       )}
       <div className={styles.loginContainer}>
         <div className={styles.toggle}>
-          <button className={isLogin ? styles.active : ""} onClick={() => setIsLogin(true)}>
+          <button
+            className={isLogin ? styles.active : ""}
+            onClick={() => setIsLogin(true)}
+          >
             <svg
               className={styles.toggleIcon}
               viewBox="0 0 24 24"
@@ -279,7 +218,10 @@ export default function Login() {
             </svg>
             <span>Login</span>
           </button>
-          <button className={!isLogin ? styles.active : ""} onClick={() => setIsLogin(false)}>
+          <button
+            className={!isLogin ? styles.active : ""}
+            onClick={() => setIsLogin(false)}
+          >
             <svg
               className={styles.toggleIcon}
               viewBox="0 0 24 24"
@@ -295,7 +237,6 @@ export default function Login() {
             <span>Register</span>
           </button>
         </div>
-        {/* Login Form */}
         <form
           ref={loginFormRef}
           autoComplete="off"
@@ -315,7 +256,6 @@ export default function Login() {
             </svg>
             <h2 className={styles.title}>Login</h2>
           </div>
-          {/* Hidden dummy fields to catch browser autofill and keep visible fields empty */}
           <input
             type="text"
             name="fake-username"
@@ -415,7 +355,6 @@ export default function Login() {
             <span>Login</span>
           </button>
         </form>
-        {/* Register Form */}
         <form
           ref={registerFormRef}
           autoComplete="off"
@@ -517,7 +456,13 @@ export default function Login() {
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <polyline points="22,6 12,13 2,6" />
             </svg>
-            <input name="email" type="email" placeholder="Email" required autoComplete="email" />
+            <input
+              name="email"
+              type="email"
+              placeholder="Email"
+              required
+              autoComplete="email"
+            />
           </div>
           <div className={styles.inputGroup}>
             <svg
@@ -588,7 +533,13 @@ export default function Login() {
             >
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
-            <input name="mobile" type="text" placeholder="Mobile" required autoComplete="tel" />
+            <input
+              name="mobile"
+              type="text"
+              placeholder="Mobile"
+              required
+              autoComplete="tel"
+            />
           </div>
           <button type="submit" className={styles.submitButton}>
             <svg
@@ -608,5 +559,13 @@ export default function Login() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginComponent />
+    </Suspense>
   );
 }

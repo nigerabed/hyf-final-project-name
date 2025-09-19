@@ -1,21 +1,19 @@
-"use client";
-
 import { useState } from "react";
-import { useParams } from "next/navigation"; // 1. Import useParams
-import styles from "./InviteMembers.module.css";
+import { useParams } from "next/navigation";
+import styles from "./InviteMembers.module.css"; // Assuming a CSS module exists
 import Button from "../Button/Button";
 
 export default function InviteMembers() {
-  const [isCopied, setIsCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { tripId } = useParams(); // 2. Get the current tripId from the URL
+  const { tripId } = useParams();
+  const [feedback, setFeedback] = useState("");
 
   const handleCopyLink = async () => {
-    setIsLoading(true);
+    setFeedback("Generating link...");
     const token = localStorage.getItem("token");
+
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/invitations`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/invite`,
         {
           method: "POST",
           headers: {
@@ -24,33 +22,41 @@ export default function InviteMembers() {
         }
       );
 
-      if (!response.ok) throw new Error("Failed to create invite link.");
+      // **MODIFIED**: Better error handling
+      if (!response.ok) {
+        // Try to parse a specific error message from the backend JSON response
+        const errorData = await response.json().catch(() => null);
+        const errorMessage =
+          errorData?.error || "Failed to create invite link. Please try again.";
+        throw new Error(errorMessage);
+      }
 
       const result = await response.json();
       const { shareableLink } = result;
 
+      // Use the modern, secure Clipboard API
       await navigator.clipboard.writeText(shareableLink);
-      setIsCopied(true);
+      setFeedback("✅ Link copied to clipboard!");
 
-      setTimeout(() => setIsCopied(false), 3000);
-    } catch (err) {
-      console.error("Failed to copy link:", err);
-      alert("Failed to create invite link.");
-    } finally {
-      setIsLoading(false);
+      // Clear the feedback message after a few seconds
+      setTimeout(() => setFeedback(""), 3000);
+    } catch (error) {
+      console.error("Error creating invite link:", error);
+      // Display the specific error message
+      setFeedback(`❌ Error: ${error.message}`);
     }
   };
 
   return (
     <div className={styles.inviteModule}>
-      <h3>Invite Friends</h3>
-      <Button onClick={handleCopyLink} disabled={isLoading}>
-        {isLoading
-          ? "Generating..."
-          : isCopied
-          ? "✅ Copied!"
-          : "🔗 Copy Invite Link"}
+      <h3 className={styles.title}>Invite Others</h3>
+      <p className={styles.description}>
+        Share this link to invite friends to plan with you.
+      </p>
+      <Button onClick={handleCopyLink}>
+        {feedback ? "..." : "Copy Invite Link"}
       </Button>
+      {feedback && <p className={styles.feedback}>{feedback}</p>}
     </div>
   );
 }

@@ -3,27 +3,55 @@ import { useState } from "react";
 import styles from "./CreateTripForm.module.css";
 import Button from "../Button/Button";
 
-export default function CreateTripForm({ onTripCreate }) {
+export default function CreateTripForm({
+  onTripCreate,
+  isLoading,
+  onDismissError,
+}) {
   const [tripName, setTripName] = useState("Summer Trip to Paris");
   const [destination, setDestination] = useState("Paris, France");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
+    onDismissError(); // Dismiss any previous errors
     if (!tripName || !destination || !startDate || !endDate) {
-      alert("Please fill out all fields.");
+      onTripCreate({ error: "Please fill out all fields." });
       return;
     }
-    const tripData = { name: tripName, destination, startDate, endDate };
-    try {
-      setIsCreating(true);
-      await onTripCreate(tripData);
-    } catch (err) {
-      console.error("CreateTripForm: error creating trip", err);
-    } finally {
-      setIsCreating(false);
+
+    const destinationParts = destination.split(",").map((part) => part.trim());
+    if (destinationParts.length !== 2) {
+      onTripCreate({ error: "Destination must be in 'City, Country' format." });
+      return;
     }
+
+    const [city_name, country_name] = destinationParts;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const duration_days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+    if (duration_days < 1) {
+      onTripCreate({ error: "End date must be after the start date." });
+      return;
+    }
+
+    const formData = {
+      name: tripName,
+      description: `A trip to ${city_name}, ${country_name}.`,
+      start_date: startDate,
+      duration_days: duration_days,
+      destinations: [
+        {
+          city_name,
+          country_name,
+          duration_days: duration_days,
+          stop_order: 1,
+        },
+      ],
+    };
+    onTripCreate(formData);
   };
 
   return (
@@ -73,8 +101,8 @@ export default function CreateTripForm({ onTripCreate }) {
             />
           </div>
         </div>
-        <Button onClick={handleCreate} disabled={isCreating} aria-busy={isCreating}>
-          {isCreating ? "Creating..." : "Create Trip & Start Planning →"}
+        <Button onClick={handleCreate} disabled={isLoading}>
+          {isLoading ? "Creating..." : "Create Trip & Start Planning →"}
         </Button>
       </div>
     </div>

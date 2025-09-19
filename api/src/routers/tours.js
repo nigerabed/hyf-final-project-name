@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
       maxPrice,
       minDuration,
       maxDuration,
-      currency, // **FIX 1:** Removed ' = "USD" ' default to make currency filter optional.
+      currency,
     } = req.query;
 
     // Build the base query
@@ -44,11 +44,11 @@ router.get("/", async (req, res) => {
           .orWhere("tp.description", "ilike", `%${search}%`)
           .orWhereExists(function () {
             this.select(1)
-              .from("tour_destinations as td")
-              .whereRaw("td.tour_id = tp.id")
+              .from("travel_plan_destinations as tpd")
+              .whereRaw("tpd.travel_plan_id = tp.id")
               .andWhere(function () {
-                this.where("td.city_name", "ilike", `%${search}%`).orWhere(
-                  "td.country_name",
+                this.where("tpd.city_name", "ilike", `%${search}%`).orWhere(
+                  "tpd.country_name",
                   "ilike",
                   `%${search}%`
                 );
@@ -168,13 +168,13 @@ router.get("/:id", async (req, res) => {
       });
     }
 
-    // **FIX 3:** Replaced sequential awaits with Promise.all for better performance.
+    // Replaced sequential awaits with Promise.all for better performance.
     const [destinations, accommodations, flights, reviews] = await Promise.all([
-      knex("tour_destinations")
-        .where("tour_id", id)
+      knex("travel_plan_destinations")
+        .where("travel_plan_id", id)
         .orderBy("stop_order", "asc"),
-      knex("tour_accommodations").where("tour_id", id),
-      knex("tour_flights").where("tour_id", id),
+      knex("travel_plan_accommodations").where("travel_plan_id", id),
+      knex("travel_plan_flights").where("travel_plan_id", id),
       knex("tour_reviews as tr")
         .select("tr.*", "u.first_name", "u.last_name", "u.profile_image")
         .leftJoin("users as u", "tr.user_id", "u.id")
@@ -238,8 +238,6 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // **FIX 2:** Replaced manual transaction handling with a safer block pattern.
-    // Added a check for destinations.length to prevent empty query error.
     await knex.transaction(async (trx) => {
       const [tour] = await trx("travel_plans")
         .insert({
@@ -261,7 +259,7 @@ router.post("/", async (req, res) => {
         destinations.length > 0
       ) {
         const destinationData = destinations.map((dest, index) => ({
-          tour_id: tour.id,
+          travel_plan_id: tour.id,
           city_name: dest.city_name,
           country_name: dest.country_name,
           stop_order: index + 1,
@@ -270,7 +268,7 @@ router.post("/", async (req, res) => {
             Math.ceil(duration_days / destinations.length),
         }));
 
-        await trx("tour_destinations").insert(destinationData);
+        await trx("travel_plan_destinations").insert(destinationData);
       }
 
       const newTour = await trx("travel_plans as tp")
@@ -363,10 +361,10 @@ router.put("/:id", async (req, res) => {
       }
 
       if (destinations && Array.isArray(destinations)) {
-        await trx("tour_destinations").where("tour_id", id).del();
+        await trx("travel_plan_destinations").where("travel_plan_id", id).del();
         if (destinations.length > 0) {
           const destinationData = destinations.map((dest, index) => ({
-            tour_id: id,
+            travel_plan_id: id,
             city_name: dest.city_name,
             country_name: dest.country_name,
             stop_order: index + 1,
@@ -377,7 +375,7 @@ router.put("/:id", async (req, res) => {
                   destinations.length
               ),
           }));
-          await trx("tour_destinations").insert(destinationData);
+          await trx("travel_plan_destinations").insert(destinationData);
         }
       }
 

@@ -1,6 +1,9 @@
 -- =================================================================
 --  Better travel Database Schema
 -- =================================================================
+
+DROP TABLE IF EXISTS trip_states CASCADE;
+
 DROP TABLE IF EXISTS trip_votes CASCADE;
 
 DROP TABLE IF EXISTS trip_shortlist_items CASCADE;
@@ -23,9 +26,9 @@ DROP TABLE IF EXISTS comments CASCADE;
 
 DROP TABLE IF EXISTS tour_reviews CASCADE;
 
-DROP TABLE IF EXISTS tour_accommodations CASCADE;
+DROP TABLE IF EXISTS travel_plan_accommodations CASCADE;
 
-DROP TABLE IF EXISTS tour_flights CASCADE;
+DROP TABLE IF EXISTS travel_plan_flights CASCADE;
 
 DROP TABLE IF EXISTS user_post_photos CASCADE;
 
@@ -35,7 +38,7 @@ DROP TABLE IF EXISTS user_posts CASCADE;
 
 DROP TABLE IF EXISTS attraction_posts CASCADE;
 
-DROP TABLE IF EXISTS tour_destinations CASCADE;
+DROP TABLE IF EXISTS travel_plan_destinations CASCADE;
 
 DROP TABLE IF EXISTS tour_bookings CASCADE;
 
@@ -104,8 +107,6 @@ CREATE TABLE travel_plans (
     plan_type VARCHAR(20) NOT NULL CHECK (plan_type IN ('user', 'tour')),
     rating NUMERIC(3, 2) DEFAULT 0.00,
     rating_count INTEGER DEFAULT 0,
-    selected_accommodation_id UUID,
-    selected_flight_id UUID,
     created_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT NOW()
@@ -132,14 +133,14 @@ CREATE TABLE tour_bookings (
 );
 
 -- Stores the individual stops/destinations for a multi-destination trip.
-CREATE TABLE tour_destinations (
+CREATE TABLE travel_plan_destinations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    tour_id UUID NOT NULL REFERENCES travel_plans (id) ON DELETE CASCADE,
+    travel_plan_id UUID NOT NULL REFERENCES travel_plans (id) ON DELETE CASCADE,
     city_name VARCHAR(100) NOT NULL,
     country_name VARCHAR(100) NOT NULL,
     stop_order INTEGER NOT NULL,
     duration_days INTEGER NOT NULL,
-    UNIQUE (tour_id, stop_order)
+    UNIQUE (travel_plan_id, stop_order)
 );
 
 -- Stores admin-created content about specific attractions.
@@ -192,21 +193,21 @@ CREATE TABLE user_post_photos (
         TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE tour_flights (
+CREATE TABLE travel_plan_flights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    tour_id UUID NOT NULL REFERENCES travel_plans (id) ON DELETE CASCADE,
-    departs_from_destination_id UUID NOT NULL REFERENCES tour_destinations (id) ON DELETE CASCADE,
-    arrives_at_destination_id UUID NOT NULL REFERENCES tour_destinations (id) ON DELETE CASCADE,
+    travel_plan_id UUID NOT NULL REFERENCES travel_plans (id) ON DELETE CASCADE,
+    departs_from_destination_id UUID NOT NULL REFERENCES travel_plan_destinations (id) ON DELETE CASCADE,
+    arrives_at_destination_id UUID NOT NULL REFERENCES travel_plan_destinations (id) ON DELETE CASCADE,
     airline VARCHAR(100),
     flight_number VARCHAR(50),
     price_minor BIGINT,
     currency_code CHAR(3) REFERENCES currencies (code)
 );
 
-CREATE TABLE tour_accommodations (
+CREATE TABLE travel_plan_accommodations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    tour_id UUID NOT NULL REFERENCES travel_plans (id) ON DELETE CASCADE,
-    destination_id UUID NOT NULL REFERENCES tour_destinations (id) ON DELETE CASCADE,
+    travel_plan_id UUID NOT NULL REFERENCES travel_plans (id) ON DELETE CASCADE,
+    destination_id UUID NOT NULL REFERENCES travel_plan_destinations (id) ON DELETE CASCADE,
     name VARCHAR(100),
     type VARCHAR(50) CHECK (
         type IN (
@@ -421,4 +422,13 @@ CREATE TABLE trip_chat_messages (
     created_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT NOW()
+);
+-- Stores the trip state for travel planniner
+CREATE TABLE trip_states (
+    trip_id UUID PRIMARY KEY,
+    planning_phase VARCHAR(255) NOT NULL DEFAULT 'preferences',
+    updated_at TIMESTAMP
+    WITH
+        TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_trip FOREIGN KEY (trip_id) REFERENCES travel_plans (id) ON DELETE CASCADE
 );

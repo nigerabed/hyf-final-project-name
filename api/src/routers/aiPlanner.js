@@ -33,8 +33,8 @@ router.post("/", async (req, res) => {
         .json({ error: "You do not have permission for this trip." });
     }
 
-    const destination = await knex("tour_destinations")
-      .where({ tour_id: tripId })
+    const destination = await knex("travel_plan_destinations")
+      .where({ travel_plan_id: tripId })
       .orderBy("stop_order", "asc")
       .first();
 

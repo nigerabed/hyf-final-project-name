@@ -1,7 +1,13 @@
 import styles from "./Sidebar.module.css";
 import Button from "../Button/Button";
 
-export default function TripShortlist({ items = [], onStartVote }) {
+// **MODIFIED**: Accept onGenerateItinerary prop
+export default function TripShortlist({
+  items = [],
+  onStartVote,
+  isSoloTrip,
+  onGenerateItinerary,
+}) {
   return (
     <div className={styles.sidebarModule}>
       <h3>Trip Shortlist ({items.length})</h3>
@@ -12,7 +18,16 @@ export default function TripShortlist({ items = [], onStartVote }) {
           <li>No items shortlisted.</li>
         )}
       </ul>
-      <Button onClick={onStartVote}>Start Vote</Button>
+      {/* **MODIFIED**: Show the correct button based on whether it's a solo trip */}
+      {isSoloTrip ? (
+        <Button onClick={onGenerateItinerary} disabled={items.length === 0}>
+          Generate Itinerary
+        </Button>
+      ) : (
+        <Button onClick={onStartVote} disabled={items.length === 0}>
+          Start Vote
+        </Button>
+      )}
     </div>
   );
 }

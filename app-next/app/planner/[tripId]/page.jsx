@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import styles from "./planner.module.css";
 import CreateTripForm from "../../../components/planner/CreateTripForm/CreateTripForm";
 import ProgressTracker from "../../../components/planner/ProgressTracker/ProgressTracker";
@@ -17,115 +15,280 @@ import ItineraryDisplay from "../../../components/planner/MainArea/ItineraryDisp
 import AccommodationDisplay from "../../../components/planner/MainArea/AccommodationDisplay";
 import FlightDisplay from "../../../components/planner/MainArea/FlightDisplay";
 
+const ErrorBanner = ({ message, onDismiss }) => {
+  if (!message) return null;
+  return (
+    <div className={styles.errorBanner}>
+      <span>{message}</span>
+      <button onClick={onDismiss}>&times;</button>
+    </div>
+  );
+};
+
+const TripBookedView = ({ tripName }) => {
+  const router = useRouter();
+  useEffect(() => {
+    const timer = setTimeout(() => router.push("/user"), 5000);
+    return () => clearTimeout(timer);
+  }, [router]);
+  return (
+    <div className={styles.bookedViewContainer}>
+      <h2>This Trip Has Been Booked!</h2>
+      <p>
+        Your plans for <strong>{tripName}</strong> are confirmed.
+      </p>
+      <p>You can find your booked trips in your user profile.</p>
+      <p className={styles.redirectMessage}>Redirecting shortly...</p>
+    </div>
+  );
+};
+
 export default function PlannerPage() {
   const { tripId } = useParams();
+  const router = useRouter();
   const [view, setView] = useState("loading");
   const [tripData, setTripData] = useState(null);
   const [planningPhase, setPlanningPhase] = useState("preferences");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [shortlistedItems, setShortlistedItems] = useState([]);
   const [selectedAccommodation, setSelectedAccommodation] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [itinerary, setItinerary] = useState(null);
-  const [collaborators, setCollaborators] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const checkOwnership = (trip) => {
+  const statePollTimer = useRef(null);
+  const planningPhaseRef = useRef(planningPhase);
+
+  useEffect(() => {
+    planningPhaseRef.current = planningPhase;
+  }, [planningPhase]);
+
+  useEffect(() => {
     const userData = localStorage.getItem("user");
-    if (userData && trip) {
-      const currentUser = JSON.parse(userData);
-      setIsOwner(trip.owner_id === currentUser.id);
+    if (userData) {
+      setCurrentUser(JSON.parse(userData));
     }
-  };
+  }, []);
 
-  const fetchTripData = useCallback(async () => {
-    if (tripId === "new" || !tripId) {
+  const isSoloTrip = allMembers.length <= 1;
+
+  const updatePlanningPhase = useCallback(
+    async (newPhase) => {
+      if (!isOwner) {
+        setError("Only the trip owner can advance the planning stage.");
+        return;
+      }
+      const token = localStorage.getItem("token");
+      setIsLoading(true);
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/state`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ phase: newPhase }),
+          }
+        );
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Failed to update phase");
+        }
+        setPlanningPhase(newPhase);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [tripId, isOwner]
+  );
+
+  const fetchTripData = useCallback(
+    async (isInitialLoad = false) => {
+      if (tripId === "new" || !tripId) {
+        setView("create");
+        return;
+      }
+      const token = localStorage.getItem("token");
+      try {
+        const responses = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/itinerary`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        for (const res of responses) {
+          if (res.status === 401 || res.status === 403) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            router.push(`/login?redirect=${window.location.pathname}`);
+            return;
+          }
+          if (!res.ok && res.status !== 404) {
+            const errorData = await res.json();
+            throw new Error(
+              errorData.error ||
+                `A data request failed with status ${res.status}`
+            );
+          }
+        }
+
+        const [tripRes, shortlistRes, itineraryRes, chatRes] = responses;
+
+        const tripResult = await tripRes.json();
+        const trip = tripResult.data;
+        setTripData(trip);
+
+        const ownerStatus = currentUser?.id === trip.owner_id;
+        setIsOwner(ownerStatus);
+
+        const { owner, collaborators = [] } = trip;
+        const members = owner ? [owner, ...collaborators] : collaborators;
+        setAllMembers(
+          Array.from(new Map(members.map((m) => [m.id, m])).values())
+        );
+
+        if (trip.accommodations && trip.accommodations.length > 0) {
+          setSelectedAccommodation(trip.accommodations[0]);
+        }
+        if (trip.flights && trip.flights.length > 0) {
+          setSelectedFlight(trip.flights[0]);
+        }
+
+        if (shortlistRes.ok) {
+          const shortlistResult = await shortlistRes.json();
+          setShortlistedItems(shortlistResult.data);
+        }
+
+        if (
+          itineraryRes.ok &&
+          itineraryRes.headers.get("Content-Length") !== "0"
+        ) {
+          const itineraryResult = await itineraryRes.json();
+          setItinerary(itineraryResult.data);
+        } else {
+          setItinerary(null);
+        }
+
+        if (chatRes.ok) {
+          const chatResult = await chatRes.json();
+          setMessages(
+            chatResult.data.map((msg) => ({
+              ...msg,
+              user: { first_name: msg.first_name, id: msg.user_id },
+            }))
+          );
+        }
+
+        if (isInitialLoad) {
+          setView("planner");
+        }
+      } catch (error) {
+        setError(error.message);
+      }
+    },
+    [tripId, currentUser, router]
+  );
+
+  const pollData = useCallback(async () => {
+    if (!currentUser || !tripId || tripId === "new") return;
+
+    // First, check the lightweight state endpoint
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/state`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) return;
+      const result = await res.json();
+
+      // If the phase has changed, trigger a full refresh and update the state
+      if (planningPhaseRef.current !== result.data.planning_phase) {
+        setPlanningPhase(result.data.planning_phase);
+        await fetchTripData(true);
+      } else {
+        // If the phase is the same, just refresh the data silently
+        await fetchTripData(false);
+      }
+    } catch (err) {
+      console.error("Data poll failed:", err);
+    }
+  }, [tripId, fetchTripData, currentUser]);
+
+  useEffect(() => {
+    if (tripId === "new") {
       setView("create");
       return;
     }
-    const token = localStorage.getItem("token");
-    try {
-      const res = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/itinerary`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
 
-      const [tripRes, shortlistRes, itineraryRes, chatRes] = res;
-      if (!tripRes.ok || !shortlistRes.ok) throw new Error("Failed to load trip data.");
-
-      const tripResult = await tripRes.json();
-      const shortlistResult = await shortlistRes.json();
-
-      setTripData(tripResult.data);
-      setShortlistedItems(shortlistResult.data);
-      setCollaborators(tripResult.data.collaborators || []);
-      checkOwnership(tripResult.data);
-
-      if (itineraryRes.ok) {
-        const itineraryResult = await itineraryRes.json();
-        setItinerary(itineraryResult.data);
-      }
-      if (chatRes.ok) {
-        const chatResult = await chatRes.json();
-        setMessages(chatResult.data);
-      }
-
-      if (view !== "planner") {
-        setPlanningPhase(tripResult.data.currentPhase || "preferences");
-        setView("planner");
-      }
-    } catch (error) {
-      console.error("Error fetching trip data:", error);
+    if (currentUser && tripId) {
+      fetchTripData(true);
+      statePollTimer.current = setInterval(pollData, 5000); // Set to 5 seconds
     }
-  }, [tripId, view]);
 
-  useEffect(() => {
-    fetchTripData();
-    const intervalId = setInterval(fetchTripData, 15000);
-    return () => clearInterval(intervalId);
-  }, [tripId, fetchTripData]);
+    return () => {
+      if (statePollTimer.current) clearInterval(statePollTimer.current);
+    };
+  }, [currentUser, tripId, fetchTripData, pollData]);
 
   const handleTripCreated = async (formData) => {
+    setError(null);
+    if (formData.error) {
+      setError(formData.error);
+      return;
+    }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/build`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        }
+      );
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create trip");
+        throw new Error(errorData.error || "Failed to create trip.");
       }
       const result = await response.json();
       const newTrip = result.data;
       window.location.replace(`/planner/${newTrip.id}`);
     } catch (error) {
-      console.error("Error creating trip:", error);
-      alert(`Could not create trip: ${error.message}`);
+      setError(`Failed to create trip: ${error.message}. Please try again.`);
+    } finally {
       setIsLoading(false);
     }
   };
 
   const handleGetSuggestions = async (preferenceText) => {
-    if (tripId === "new" || !tripId) {
-      alert("Please create a trip before getting AI suggestions.");
+    setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can get AI suggestions.");
       return;
     }
     const token = localStorage.getItem("token");
@@ -142,22 +305,24 @@ export default function PlannerPage() {
           body: JSON.stringify({ preferences: preferenceText }),
         }
       );
-      if (!response.ok) throw new Error("Failed to get suggestions");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get suggestions.");
+      }
       const returnedSuggestions = await response.json();
       setSuggestions(returnedSuggestions.data);
-      setPlanningPhase("shortlisting");
+      await updatePlanningPhase("shortlisting");
     } catch (error) {
-      console.error("Error getting AI suggestions:", error);
-      alert("Could not get suggestions. Please try again.");
+      setError(
+        `Could not get suggestions: ${error.message}. Please try again.`
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAddToShortlist = async (attraction) => {
-    if (shortlistedItems.find((item) => item.id === attraction.id)) {
-      return;
-    }
+    setError(null);
     const token = localStorage.getItem("token");
     try {
       const response = await fetch(
@@ -171,53 +336,68 @@ export default function PlannerPage() {
           body: JSON.stringify({ attraction_id: attraction.id }),
         }
       );
-      if (!response.ok) throw new Error("Failed to add to shortlist");
-      const shortlistRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`,
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to add to shortlist.");
+      }
+      await fetchTripData();
+    } catch (error) {
+      setError(`Could not add item to shortlist: ${error.message}.`);
+    }
+  };
+
+  const handleRemoveFromShortlist = async (itemToRemove) => {
+    setError(null);
+    const token = localStorage.getItem("token");
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist/${itemToRemove.shortlistItemId}`,
         {
+          method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      const shortlistResult = await shortlistRes.json();
-      setShortlistedItems(shortlistResult.data);
+      await fetchTripData();
     } catch (error) {
-      console.error("Error adding to shortlist:", error);
-      alert("Could not add item to shortlist.");
+      setError(`Could not remove item from shortlist: ${error.message}.`);
     }
   };
 
   const handleVote = async (shortlistItemId) => {
+    setError(null);
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist/${shortlistItemId}/vote`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      if (!response.ok) throw new Error("Failed to update vote");
-
-      const result = await response.json();
-      setShortlistedItems((currentItems) =>
-        currentItems.map((item) => {
-          if (item.shortlistItemId === shortlistItemId) {
-            return {
-              ...item,
-              voteCount: result.voteCount,
-              userHasVoted: result.userHasVoted,
-            };
-          }
-          return item;
-        })
-      );
+      await fetchTripData();
     } catch (error) {
-      console.error("Error voting:", error);
-      alert("Could not process your vote.");
+      setError(`Could not process your vote: ${error.message}.`);
+    }
+  };
+
+  const handleStartVote = () => {
+    if (!isOwner) {
+      setError("Only the trip owner can start a vote.");
+      return;
+    }
+    if (shortlistedItems.length > 0) {
+      updatePlanningPhase("voting");
+    } else {
+      setError("Please shortlist at least one attraction to start a vote.");
     }
   };
 
   const handleGenerateItinerary = async () => {
+    setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can generate the itinerary.");
+      return;
+    }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
@@ -228,27 +408,32 @@ export default function PlannerPage() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      if (!response.ok) throw new Error("Failed to generate itinerary");
-      const result = await response.json();
-      setItinerary(result.data);
-      setPlanningPhase("itinerary");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate itinerary.");
+      }
+      await updatePlanningPhase("itinerary");
     } catch (error) {
-      console.error("Error generating itinerary:", error);
-      alert("Could not generate the itinerary. Please ensure items are shortlisted and voted on.");
+      setError(`Could not generate itinerary: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleModifyItinerary = async (command) => {
+    setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can modify the itinerary.");
+      return;
+    }
     if (!itinerary) {
-      alert("An itinerary must be generated before it can be modified.");
+      setError("An itinerary must be generated before it can be modified.");
       return;
     }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/itinerary/modify`,
         {
           method: "POST",
@@ -262,133 +447,160 @@ export default function PlannerPage() {
           }),
         }
       );
-      if (!response.ok) throw new Error("Failed to modify itinerary");
-      const result = await response.json();
-      setItinerary(result.data);
+      await fetchTripData();
     } catch (error) {
-      console.error("Error modifying itinerary:", error);
-      alert("Could not modify the itinerary. Please try a different command.");
+      setError(`Could not modify itinerary: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleConfirmAccommodation = async () => {
-    if (!selectedAccommodation) {
-      alert("Please select an accommodation first.");
+    setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can confirm accommodations.");
       return;
     }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          selected_accommodation_id: selectedAccommodation.id,
-        }),
-      });
-      if (!response.ok) throw new Error("Failed to save hotel selection.");
-      setPlanningPhase("flights");
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/accommodations`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            destination_id: tripData.destinations[0].id,
+            name: selectedAccommodation.name,
+            type: selectedAccommodation.type || "hotel",
+            rating: selectedAccommodation.rating || 0,
+          }),
+        }
+      );
+      await updatePlanningPhase("flights");
     } catch (error) {
-      console.error("Error confirming accommodation:", error);
-      alert("Could not save your hotel selection.");
+      setError(`Could not save your hotel selection: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFinalizeAndBook = async () => {
-    if (!selectedFlight) {
-      alert("Please select a flight first.");
+  const handleSaveFlight = async () => {
+    setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can save the flight selection.");
       return;
     }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ selected_flight_id: selectedFlight.id }),
-      });
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/flights`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            departs_from_destination_id: tripData.destinations[0].id,
+            arrives_at_destination_id: tripData.destinations[0].id,
+            airline: selectedFlight.airline,
+            flight_number: selectedFlight.flight_number,
+          }),
+        }
+      );
       setView("booking");
     } catch (error) {
-      console.error("Error saving flight selection:", error);
-      alert("Could not save your flight selection.");
+      setError(`Could not save your flight selection: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleConfirmBooking = async () => {
+  const handleGoToBooking = () => {
+    if (!isOwner) {
+      setError("Only the trip owner can proceed to booking.");
+      return;
+    }
+    handleSaveFlight();
+  };
+
+  const handleConfirmBooking = async (numTravelers) => {
+    setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can finalize the booking.");
+      return;
+    }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/bookings/custom-trip`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          trip_id: tripId,
-          num_travelers: collaborators.length || 1,
-        }),
-      });
-      if (!response.ok) throw new Error("Booking failed.");
-      alert("Booking successful! Your trip is confirmed.");
-      window.location.href = "/planner/new";
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/bookings/custom-trip`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            trip_id: tripId,
+            num_travelers: numTravelers,
+          }),
+        }
+      );
+      await updatePlanningPhase("booked");
     } catch (error) {
-      console.error("Error confirming booking:", error);
-      alert("There was an error confirming your booking.");
+      setError(`There was an error confirming your booking: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSendMessage = async (messageContent) => {
+    setError(null);
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: messageContent }),
-      });
-      if (!response.ok) throw new Error("Message failed to send.");
-      fetchTripData();
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: messageContent }),
+        }
+      );
+      await fetchTripData();
     } catch (error) {
-      console.error(error);
-      alert("Failed to send message.");
+      setError(`Failed to send message: ${error.message}.`);
     }
   };
 
-  const handleStartVote = () => {
-    if (shortlistedItems.length > 0) setPlanningPhase("voting");
-    else alert("Please shortlist at least one attraction to start a vote.");
+  const handleSelectAccommodations = () => {
+    if (isOwner) updatePlanningPhase("accommodations");
   };
-
-  const handleSelectAccommodations = () => setPlanningPhase("accommodations");
-  const handleSelectFlights = () => setPlanningPhase("flights");
+  const handleSelectFlights = () => {
+    if (isOwner) updatePlanningPhase("flights");
+  };
 
   const renderMainContent = () => {
     switch (planningPhase) {
       case "preferences":
-        return <EmptyState destination={tripData?.destination} />;
+        return (
+          <EmptyState destination={tripData?.destinations?.[0]?.city_name} />
+        );
       case "shortlisting":
       case "voting":
         return (
           <SuggestionGrid
             suggestions={suggestions}
             onAddToShortlist={handleAddToShortlist}
+            onRemoveFromShortlist={handleRemoveFromShortlist}
             shortlistedItems={shortlistedItems}
           />
         );
@@ -398,9 +610,10 @@ export default function PlannerPage() {
             itinerary={itinerary}
             onModifyItinerary={handleModifyItinerary}
             isLoading={isLoading}
+            isOwner={isOwner}
           />
         ) : (
-          <div>Loading itinerary...</div>
+          <div>Generating itinerary...</div>
         );
       case "accommodations":
         return (
@@ -410,6 +623,7 @@ export default function PlannerPage() {
             selectedAccommodation={selectedAccommodation}
             onConfirm={handleConfirmAccommodation}
             tripData={tripData}
+            isOwner={isOwner}
           />
         );
       case "flights":
@@ -418,6 +632,7 @@ export default function PlannerPage() {
             flights={mockData.flights}
             onSelectFlight={setSelectedFlight}
             selectedFlight={selectedFlight}
+            isOwner={isOwner}
           />
         );
       default:
@@ -429,10 +644,19 @@ export default function PlannerPage() {
     return <div>Loading your trip...</div>;
   }
 
+  if (planningPhase === "booked") {
+    return <TripBookedView tripName={tripData?.name} />;
+  }
+
   if (view === "create") {
     return (
       <main className={styles.createFormLayout}>
-        <CreateTripForm onTripCreate={handleTripCreated} isLoading={isLoading} />
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+        <CreateTripForm
+          onTripCreate={handleTripCreated}
+          isLoading={isLoading}
+          onDismissError={() => setError(null)}
+        />
       </main>
     );
   }
@@ -440,30 +664,12 @@ export default function PlannerPage() {
   if (view === "planner") {
     return (
       <main className={styles.plannerLayout}>
-        <div className={styles.pageWrapper}>
-          <div className={styles.titleContainer}>
-            <div className={styles.headerRow}>
-              <div className={styles.backButtonWrapper}>
-                <Link
-                  className={styles.backButton}
-                  href="/planner/new"
-                  aria-label="Back to create trip"
-                >
-                  ← Back
-                </Link>
-              </div>
-
-              <div className={styles.titleWrapper}>
-                <h1 className={styles.title}>Trip Planner</h1>
-              </div>
-
-              <div style={{ width: "48px" }} aria-hidden="true"></div>
-            </div>
-          </div>
-        </div>
-
-        <ProgressTracker currentPhase={planningPhase} onPhaseChange={setPlanningPhase} />
-
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+        <ProgressTracker
+          currentPhase={planningPhase}
+          onPhaseChange={setPlanningPhase}
+          isSoloTrip={isSoloTrip}
+        />
         <div className={styles.plannerContent}>
           <aside className={styles.sidebarContainer}>
             <Sidebar
@@ -480,11 +686,14 @@ export default function PlannerPage() {
               onGenerateItinerary={handleGenerateItinerary}
               onSelectAccommodations={handleSelectAccommodations}
               onSelectFlights={handleSelectFlights}
-              onFinalize={handleFinalizeAndBook}
+              onGoToBooking={handleGoToBooking}
+              isSoloTrip={isSoloTrip}
+              isOwner={isOwner}
+              currentUser={currentUser}
             />
           </aside>
           <section className={styles.mainAreaContainer}>
-            <MainArea isOwner={isOwner} collaborators={collaborators}>
+            <MainArea isOwner={isOwner} members={allMembers}>
               {renderMainContent()}
             </MainArea>
           </section>
@@ -496,11 +705,14 @@ export default function PlannerPage() {
   if (view === "booking") {
     return (
       <main className={styles.createFormLayout}>
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
         <BookingView
           accommodation={selectedAccommodation}
           flight={selectedFlight}
+          tripData={tripData}
           onPay={handleConfirmBooking}
           isLoading={isLoading}
+          initialTravelers={allMembers.length || 1}
         />
       </main>
     );

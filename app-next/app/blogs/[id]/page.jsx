@@ -61,12 +61,15 @@ export default function AttractionDetailsPage() {
             blog.user.id ||
             blog.user.user_id)));
 
-    const hasAuthor = Boolean(blog.author_name || blog.author || userHasIdentifyingInfo);
+    const hasAuthor = Boolean(
+      blog.author_name || blog.author || userHasIdentifyingInfo
+    );
     if (hasAuthor) return;
 
     (async () => {
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("token") : null;
         if (!token) return;
         const res = await fetch(`${API_URL}/api/users/profile`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -77,8 +80,10 @@ export default function AttractionDetailsPage() {
         if (!profile) return;
 
         // Match profile to blog author by id or username when possible
-        const blogUserId = blog.created_by || blog.user?.id || blog.user?.user_id || blog.user;
-        const profileId = profile.id || profile.user_id || profile.userId || null;
+        const blogUserId =
+          blog.created_by || blog.user?.id || blog.user?.user_id || blog.user;
+        const profileId =
+          profile.id || profile.user_id || profile.userId || null;
         const profileUsername = profile.username || null;
 
         if (
@@ -155,7 +160,11 @@ export default function AttractionDetailsPage() {
   const title = rawTitle.replace(/:\s*[0-9a-f]{6,32}$/i, "").trim();
 
   let author = blog.author_name ?? blog.author ?? blog.created_by ?? null;
-  let avatar = blog.author_profile_image ?? blog.profile_image ?? blog.author_image ?? null;
+  let avatar =
+    blog.author_profile_image ??
+    blog.profile_image ??
+    blog.author_image ??
+    null;
   // If avatar is a backend-relative path (e.g. /images/...), convert to absolute URL
   if (avatar && typeof avatar === "string" && avatar.startsWith("/images/")) {
     const abs = `${API_URL}${avatar}`;
@@ -168,9 +177,11 @@ export default function AttractionDetailsPage() {
   // use them as a display name when explicit author fields are missing.
   if (!author) {
     const fullname = `${blog.first_name || ""} ${blog.last_name || ""}`.trim();
-    const isPlaceholder = (n) => typeof n === "string" && /^\s*(first\d*|last\d*)\s*$/i.test(n);
+    const isPlaceholder = (n) =>
+      typeof n === "string" && /^\s*(first\d*|last\d*)\s*$/i.test(n);
     const parts = fullname.split(/\s+/).filter(Boolean);
-    const isFullPlaceholder = parts.length > 0 && parts.every((p) => isPlaceholder(p));
+    const isFullPlaceholder =
+      parts.length > 0 && parts.every((p) => isPlaceholder(p));
     if (fullname && !isFullPlaceholder) author = fullname;
     else if (blog.username) author = blog.username;
   }
@@ -190,7 +201,11 @@ export default function AttractionDetailsPage() {
   const createdAt = blog.created_at ? new Date(blog.created_at) : null;
   const formattedDate =
     createdAt && !Number.isNaN(createdAt.getTime())
-      ? createdAt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+      ? createdAt.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
       : null;
 
   const rawCategory = blog.category ?? blog.type ?? null;
@@ -211,11 +226,7 @@ export default function AttractionDetailsPage() {
         <div className={styles.travelCard}>
           <div className={styles.imageWrapper}>
             <Image
-              src={
-                imageSrc ||
-                blog.cover_image_url ||
-                "https://images.unsplash.com/photo-1533106418989-88406c7cc8ca?w=500"
-              }
+              src={imageSrc || blog.cover_image_url}
               alt={title}
               fill
               style={{ objectFit: "cover" }}
