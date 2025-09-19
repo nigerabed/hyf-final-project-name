@@ -38,11 +38,17 @@ import adminModerationRouter from "./routers/admin/moderation.js";
 const app = express();
 
 // CORS configuration for frontend
+const ORIGINS = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: [
+  origin: ORIGINS.length ? ORIGINS : [
     "http://localhost:3000",
-    "http://192.168.1.235:3000",
-    "http://127.0.0.1:3000"
+    "http://localhost:3002",
+    "http://127.0.0.1:3000",
+    "http://192.168.1.235:3000"
   ],
   credentials: true
 }));

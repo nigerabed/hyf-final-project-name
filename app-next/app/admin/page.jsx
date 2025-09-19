@@ -2252,17 +2252,13 @@ export default function AdminPage() {
                 e.preventDefault();
                 setCreateError("");
                 setValidationErrors({});
-<<<<<<< HEAD
                 setClientValidationErrors({});
-=======
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
                 setCreatingUser(true);
                 try {
                   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
                   const headers = { "Content-Type": "application/json" };
                   if (token) headers.Authorization = `Bearer ${token}`;
 
-<<<<<<< HEAD
                   // Create user with default password
                   const userData = {
                     ...newUser,
@@ -2274,14 +2270,6 @@ export default function AdminPage() {
                     method: "POST",
                     headers,
                     body: JSON.stringify(userData),
-=======
-                  // Call admin create-user endpoint
-                  const body = { ...newUser };
-                  const res = await fetch(`${API_URL}/api/admin/users`, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify(body),
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
                   });
 
                   const text = await res.text();
@@ -2293,7 +2281,6 @@ export default function AdminPage() {
                   }
 
                   if (res.ok) {
-<<<<<<< HEAD
                     // Add the created user to the list (parsed.user contains the user data)
                     const createdUser = {
                       id: parsed.user.id,
@@ -2316,24 +2303,6 @@ export default function AdminPage() {
                       setValidationErrors(parsedErrors);
                     } else {
                       setCreateError(parsed.message || parsed.error || "Failed to create user");
-=======
-                    const created = parsed.data || parsed;
-                    setUsers((prev) => [created, ...(Array.isArray(prev) ? prev : [])]);
-                    setShowCreateUserModal(false);
-                    setCreateError("");
-                    showSuccess("User created successfully!");
-                  } else {
-                    // Parse and show field-level validation errors if present
-                    try {
-                      const parsedErrors = parseValidationErrors(parsed);
-                      if (parsedErrors && Object.keys(parsedErrors).length > 0) {
-                        setValidationErrors(parsedErrors);
-                      } else {
-                        setCreateError(parsed.error || parsed.message || "Failed to create user");
-                      }
-                    } catch (ex) {
-                      setCreateError(parsed.error || parsed.message || "Failed to create user");
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
                     }
                   }
                 } catch (err) {
@@ -2357,11 +2326,7 @@ export default function AdminPage() {
                   className={getInputClasses('first_name')}
                   required
                 />
-<<<<<<< HEAD
                 <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'first_name')} fieldName="First Name" />
-=======
-                <FieldError error={getFieldError(validationErrors, 'first_name')} fieldName="First Name" />
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
               </div>
               <div className={styles.field}>
                 <label>Last Name</label>
@@ -2377,11 +2342,7 @@ export default function AdminPage() {
                   className={getInputClasses('last_name')}
                   required
                 />
-<<<<<<< HEAD
                 <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'last_name')} fieldName="Last Name" />
-=======
-                <FieldError error={getFieldError(validationErrors, 'last_name')} fieldName="Last Name" />
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
               </div>
               <div className={styles.field}>
                 <label>Email</label>
@@ -2397,11 +2358,7 @@ export default function AdminPage() {
                   className={getInputClasses('email')}
                   required
                 />
-<<<<<<< HEAD
                 <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'email')} fieldName="Email" />
-=======
-                <FieldError error={getFieldError(validationErrors, 'email')} fieldName="Email" />
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
               </div>
               <div className={styles.field}>
                 <label>Username</label>
@@ -2417,11 +2374,7 @@ export default function AdminPage() {
                   className={getInputClasses('username')}
                   required
                 />
-<<<<<<< HEAD
                 <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'username')} fieldName="Username" />
-=======
-                <FieldError error={getFieldError(validationErrors, 'username')} fieldName="Username" />
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
               </div>
               <div className={styles.field}>
                 <label>Mobile</label>
@@ -2436,11 +2389,7 @@ export default function AdminPage() {
                   onBlur={(e) => handleFieldBlur('mobile', e.target.value)}
                   className={getInputClasses('mobile')}
                 />
-<<<<<<< HEAD
                 <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'mobile')} fieldName="Mobile" />
-=======
-                <FieldError error={getFieldError(validationErrors, 'mobile')} fieldName="Mobile" />
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
               </div>
               <div className={styles.field}>
                 <label>Role</label>
