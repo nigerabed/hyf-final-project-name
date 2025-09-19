@@ -12,6 +12,7 @@ import TourSearchResults from "../../components/TourSearchResults/TourSearchResu
 import PostSearchResults from "../../components/PostSearchResults/PostSearchResults";
 import AttractionSearchResults from "../../components/AttractionSearchResults/AttractionSearchResults";
 import CommentSearchResults from "../../components/CommentSearchResults/CommentSearchResults";
+import ReviewSearchResults from "../../components/ReviewSearchResults/ReviewSearchResults";
 import FieldError from "../../components/FieldError/FieldError";
 import SuccessPopup from "../../components/SuccessPopup/SuccessPopup";
 import ErrorPopup from "../../components/ErrorPopup/ErrorPopup";
@@ -20,7 +21,8 @@ import { useTourSearch } from "../../hooks/useTourSearch";
 import { usePostSearch } from "../../hooks/usePostSearch";
 import { useAttractionSearch } from "../../hooks/useAttractionSearch";
 import { useCommentSearch } from "../../hooks/useCommentSearch";
-import { parseValidationErrors, getFieldError, hasValidationErrors } from "../../utils/validationUtils";
+import { useReviewSearch } from "../../hooks/useReviewSearch";
+import { parseValidationErrors, getFieldError, hasValidationErrors, getCombinedFieldError } from "../../utils/validationUtils";
 import { UploadButton } from "@uploadthing/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -29,6 +31,7 @@ export default function AdminPage() {
   // local UI state
   const [currentSection, setCurrentSection] = useState("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
 
   // fetched data
   const [user, setUser] = useState(null);
@@ -38,6 +41,20 @@ export default function AdminPage() {
   const [attractions, setAttractions] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [postComments, setPostComments] = useState([]);
+  
+  // Pagination state
+  const [commentsPagination, setCommentsPagination] = useState({
+    limit: 5,
+    offset: 0,
+    hasMore: false,
+    total: 0
+  });
+  const [reviewsPagination, setReviewsPagination] = useState({
+    limit: 5,
+    offset: 0,
+    hasMore: false,
+    total: 0
+  });
   const [bookings, setBookings] = useState([]);
 
   // Modal states for CRUD operations
@@ -78,6 +95,7 @@ export default function AdminPage() {
   const [createError, setCreateError] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
+  const [clientValidationErrors, setClientValidationErrors] = useState({});
   
   // Success popup state
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -186,6 +204,122 @@ export default function AdminPage() {
     hasSearched: hasCommentSearched,
     clearSearch: clearCommentSearch
   } = useCommentSearch();
+
+  // Review search hook
+  const {
+    searchTerm: reviewSearchTerm,
+    setSearchTerm: setReviewSearchTerm,
+    searchResults: reviewSearchResults,
+    isSearching: isReviewSearching,
+    searchError: reviewSearchError,
+    hasSearched: hasReviewSearched,
+    clearSearch: clearReviewSearch
+  } = useReviewSearch();
+
+  // Client-side validation functions
+  function validateFirstName(value) {
+    if (!value || value.trim() === "") {
+      return "First name is required";
+    }
+    if (value.length < 2) {
+      return "First name must be at least 2 characters";
+    }
+    if (!/^[a-zA-Z\s]+$/.test(value)) {
+      return "First name can only contain letters and spaces";
+    }
+    return null;
+  }
+
+  function validateLastName(value) {
+    if (!value || value.trim() === "") {
+      return "Last name is required";
+    }
+    if (value.length < 2) {
+      return "Last name must be at least 2 characters";
+    }
+    if (!/^[a-zA-Z\s]+$/.test(value)) {
+      return "Last name can only contain letters and spaces";
+    }
+    return null;
+  }
+
+  function validateEmail(value) {
+    if (!value || value.trim() === "") {
+      return "Email is required";
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      return "Please enter a valid email address";
+    }
+    return null;
+  }
+
+  function validateUsername(value) {
+    if (!value || value.trim() === "") {
+      return "Username is required";
+    }
+    if (value.length < 3) {
+      return "Username must be at least 3 characters";
+    }
+    if (value.length > 20) {
+      return "Username must be less than 20 characters";
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+      return "Username can only contain letters, numbers, and underscores";
+    }
+    if (value.startsWith("_") || value.endsWith("_")) {
+      return "Username cannot start or end with underscore";
+    }
+    return null;
+  }
+
+  function validateMobile(value) {
+    if (!value || value.trim() === "") {
+      return "Mobile number is required";
+    }
+    if (!/^\+?[\d\s\-\(\)]{10,15}$/.test(value)) {
+      return "Please enter a valid mobile number (10-15 digits)";
+    }
+    return null;
+  }
+
+  function validateUserField(fieldName, value) {
+    let error = null;
+    switch (fieldName) {
+      case 'first_name':
+        error = validateFirstName(value);
+        break;
+      case 'last_name':
+        error = validateLastName(value);
+        break;
+      case 'email':
+        error = validateEmail(value);
+        break;
+      case 'username':
+        error = validateUsername(value);
+        break;
+      case 'mobile':
+        error = validateMobile(value);
+        break;
+      default:
+        return;
+    }
+    
+    setClientValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: error
+    }));
+  }
+
+  // Helper function to get input classes with validation
+  function getInputClasses(fieldName) {
+    const hasError = getCombinedFieldError(validationErrors, clientValidationErrors, fieldName);
+    return hasError ? `${styles.input} ${styles.inputError}` : styles.input;
+  }
+
+  // Handle field blur for validation
+  function handleFieldBlur(fieldName, value) {
+    validateUserField(fieldName, value);
+  }
 
   // Post handlers
   const handleEditPost = (post) => {
@@ -340,6 +474,113 @@ export default function AdminPage() {
     }
   };
 
+  // Load more functions for pagination
+  const loadMoreComments = async () => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const newOffset = commentsPagination.offset + commentsPagination.limit;
+      const resComments = await fetch(`${API_URL}/api/admin/comments?limit=${commentsPagination.limit}&offset=${newOffset}`, { headers });
+      const parsed = await safeParseResponse(resComments);
+      
+      if (resComments.ok && parsed.body) {
+        const newComments = parsed.body.data || parsed.body || [];
+        setPostComments(prev => [...prev, ...newComments]);
+        setCommentsPagination(prev => ({
+          ...prev,
+          offset: newOffset,
+          hasMore: parsed.body.pagination?.hasMore || false
+        }));
+      }
+    } catch (err) {
+      console.error("Error loading more comments:", err);
+    }
+  };
+
+  const loadMoreReviews = async () => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const newOffset = reviewsPagination.offset + reviewsPagination.limit;
+      const resReviews = await fetch(`${API_URL}/api/admin/reviews?limit=${reviewsPagination.limit}&offset=${newOffset}`, { headers });
+      const parsed = await safeParseResponse(resReviews);
+      
+      if (resReviews.ok && parsed.body) {
+        const newReviews = parsed.body.data || parsed.body || [];
+        setReviews(prev => [...prev, ...newReviews]);
+        setReviewsPagination(prev => ({
+          ...prev,
+          offset: newOffset,
+          hasMore: parsed.body.pagination?.hasMore || false
+        }));
+      }
+    } catch (err) {
+      console.error("Error loading more reviews:", err);
+    }
+  };
+
+  // Review handlers
+  const handleToggleReviewApproval = async (review) => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(`${API_URL}/api/admin/reviews/${review.id}/toggle-approval`, {
+        method: "PUT",
+        headers,
+      });
+
+      if (res.ok) {
+        setReviews((prev) => 
+          prev.map((r) => 
+            r.id === review.id 
+              ? { ...r, is_approved: !r.is_approved }
+              : r
+          )
+        );
+      } else {
+        const errorData = await res.json();
+        alert(`Failed to update review: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert(`Error updating review: ${err.message}`);
+    }
+  };
+
+  const handleDeleteReview = async (review) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete this review?\n\n"${review.content.substring(0, 50)}${review.content.length > 50 ? '...' : ''}"\n\nThis action cannot be undone.`
+    );
+    
+    if (confirmed) {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(`${API_URL}/api/admin/reviews/${review.id}`, {
+          method: "DELETE",
+          headers,
+        });
+
+        if (res.ok) {
+          setReviews((prev) => prev.filter((r) => r.id !== review.id));
+          showError("Review deleted successfully!");
+        } else {
+          const errorData = await res.json();
+          alert(`Failed to delete review: ${errorData.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`Error deleting review: ${err.message}`);
+      }
+    }
+  };
+
   function closeCreateModal() {
     setShowCreatePostModal(false);
     setNewPost({ title: "", category: "", content: "", cover_image_url: "" });
@@ -434,12 +675,21 @@ export default function AdminPage() {
           console.debug("Attractions request error:", err.message);
         }
 
-        // 6) All Comments (admin endpoint)
+        // 6) All Comments (admin endpoint) - Initial load with pagination
         try {
-          const resComments = await fetch(`${API_URL}/api/admin/comments`, { headers });
+          const resComments = await fetch(`${API_URL}/api/admin/comments?limit=${commentsPagination.limit}&offset=${commentsPagination.offset}`, { headers });
           const parsed = await safeParseResponse(resComments);
           if (resComments.ok && parsed.body) {
-            if (mounted) setPostComments(parsed.body.data || parsed.body || []);
+            if (mounted) {
+              setPostComments(parsed.body.data || parsed.body || []);
+              if (parsed.body.pagination) {
+                setCommentsPagination(prev => ({
+                  ...prev,
+                  hasMore: parsed.body.pagination.hasMore,
+                  total: parsed.body.pagination.total
+                }));
+              }
+            }
           } else {
             console.debug("Comments fetch failed:", parsed.raw || parsed.body?.message);
           }
@@ -447,13 +697,21 @@ export default function AdminPage() {
           console.debug("Comments request error:", err.message);
         }
 
-        // 7) All Reviews (using tour_reviews table)
+        // 7) All Tour Reviews (admin endpoint) - Initial load with pagination
         try {
-          const resReviews = await fetch(`${API_URL}/api/admin/dashboard/stats`, { headers });
+          const resReviews = await fetch(`${API_URL}/api/admin/reviews?limit=${reviewsPagination.limit}&offset=${reviewsPagination.offset}`, { headers });
           const parsed = await safeParseResponse(resReviews);
           if (resReviews.ok && parsed.body) {
-            // We'll use the stats for now, can add dedicated reviews endpoint later
-            if (mounted) setReviews([]); // Placeholder for now
+            if (mounted) {
+              setReviews(parsed.body.data || parsed.body || []);
+              if (parsed.body.pagination) {
+                setReviewsPagination(prev => ({
+                  ...prev,
+                  hasMore: parsed.body.pagination.hasMore,
+                  total: parsed.body.pagination.total
+                }));
+              }
+            }
           } else {
             console.debug("Reviews fetch failed:", parsed.raw || parsed.body?.message);
           }
@@ -1270,6 +1528,7 @@ export default function AdminPage() {
           
           {/* All Comments List (when not searching) */}
           {!hasCommentSearched && (
+            <>
           <div className={styles.commentsGrid}>
             {postComments.length === 0 ? (
               <div className={styles.emptyState}>
@@ -1336,125 +1595,180 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))
-            )}
-          </div>
           )}
         </div>
 
-      </div>
-    );
-  }
-
-  function renderBookings() {
-    if (!user)
-      return (
-        <div className={styles.profileCard}>
-          <p className={styles.empty}>Please log in to view bookings.</p>
-        </div>
-      );
-
-    return (
-      <div className={styles.profileCard}>
-        <div className={styles.sectionHeader}>
-          <h3>All Bookings</h3>
-          <p>Manage and view all user bookings</p>
-        </div>
-        
-        <div className={styles.cardGrid}>
-          {bookings.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>📋</div>
-              <h3>No bookings found</h3>
-              <p>User bookings will appear here</p>
-            </div>
-          ) : (
-            bookings.map((booking) => (
-              <div key={booking.booking_id} className={styles.cardWrapper}>
-                <div className={styles.card}>
-                  <div className={styles.cardHeader}>
-                    <h4 className={styles.cardTitle}>{booking.trip_name || "Unknown Trip"}</h4>
-                    <span 
-                      className={styles.statusBadge}
-                      style={{
-                        backgroundColor: 
-                          booking.booking_status === "confirmed" ? "#10b981" :
-                          booking.booking_status === "cancelled" ? "#ef4444" : "#f59e0b",
-                        color: "white",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        fontSize: "12px",
-                        fontWeight: "600"
-                      }}
-                    >
-                      {booking.booking_status || "pending"}
+              {/* Load More Comments Button */}
+              {postComments.length > 0 && commentsPagination.hasMore && (
+                <div className={styles.loadMoreContainer}>
+                  <button 
+                    className={styles.loadMoreButton}
+                    onClick={loadMoreComments}
+                  >
+                    <span className={styles.loadMoreText}>
+                      Load More Comments
                     </span>
-                  </div>
-                  
-                  <div className={styles.cardContent}>
-                    <div className={styles.cardMeta}>
-                      <span><strong>Type:</strong> {booking.booking_type || "tour"}</span>
-                      <span><strong>User:</strong> {booking.username || "Unknown"}</span>
-                      <span><strong>Booked:</strong> {new Date(booking.booked_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  
-                  <div className={styles.cardActions}>
-                    <button
-                      className={styles.secondary}
-                      onClick={() => {
-                        // View booking details
-                        console.log("View booking:", booking);
-                      }}
-                    >
-                      View Details
-                    </button>
-                    <button
-                      className={styles.primary}
-                      onClick={async () => {
-                        // Update booking status
-                        try {
-                          const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-                          const headers = { "Content-Type": "application/json" };
-                          if (token) headers.Authorization = `Bearer ${token}`;
-                          
-                          const newStatus = booking.booking_status === "confirmed" ? "cancelled" : "confirmed";
-                          
-                          const res = await fetch(
-                            `${API_URL}/api/admin/bookings/${booking.booking_type}/${booking.booking_id}`,
-                            {
-                              method: "PUT",
-                              headers,
-                              body: JSON.stringify({ booking_status: newStatus }),
-                            }
-                          );
-                          
-                          if (res.ok) {
-                            // Update local state
-                            setBookings(prev => 
-                              prev.map(b => 
-                                b.booking_id === booking.booking_id 
-                                  ? { ...b, booking_status: newStatus }
-                                  : b
-                              )
-                            );
-                            showSuccess(`Booking ${newStatus} successfully!`);
-                          } else {
-                            const error = await res.json().catch(() => ({ error: "Failed to update booking" }));
-                            showError(error.error || "Failed to update booking");
-                          }
-                        } catch (err) {
-                          showError("Failed to update booking");
-                        }
-                      }}
-                    >
-                      {booking.booking_status === "confirmed" ? "Cancel" : "Confirm"}
-                    </button>
-                  </div>
+                    <span className={styles.loadMoreCount}>
+                      {postComments.length} of {commentsPagination.total}
+                    </span>
+                    <svg className={styles.loadMoreIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M7 13l3 3 7-7"></path>
+                      <path d="M7 6l3 3 7-7"></path>
+                    </svg>
+                  </button>
                 </div>
-              </div>
-            ))
+              )}
+            </>
           )}
         </div>
+
+        {/* Tour Reviews Section */}
+        <div className={styles.reviewSection}>
+          <div className={styles.reviewSectionHeader}>
+            <h2 className={styles.reviewSectionTitle}>Tour Reviews</h2>
+            <p className={styles.reviewSectionSubtitle}>Manage and moderate tour reviews</p>
+        </div>
+          
+          {/* Search Box */}
+          <SearchBox
+            placeholder="Search reviews by content, author, or tour..."
+            onSearch={setReviewSearchTerm}
+            onClear={clearReviewSearch}
+            isLoading={isReviewSearching}
+            forceLightTheme={true}
+          />
+
+          {/* Search Results */}
+          <ReviewSearchResults
+            reviews={reviewSearchResults}
+            isLoading={isReviewSearching}
+            error={reviewSearchError}
+            hasSearched={hasReviewSearched}
+            onToggleApproval={handleToggleReviewApproval}
+            onDelete={handleDeleteReview}
+          />
+          
+          {/* All Reviews List (when not searching) */}
+          {!hasReviewSearched && (
+            <>
+              <div className={styles.reviewsGrid}>
+                {reviews.length === 0 ? (
+                  <div className={styles.emptyState}>
+                    <div className={styles.emptyIcon}>⭐</div>
+                    <h3>No reviews found</h3>
+                    <p>Tour reviews will appear here</p>
+                  </div>
+                ) : (
+                  reviews.map((review) => (
+                    <div key={review.id} className={styles.reviewCard}>
+                      <div className={styles.reviewCardHeader}>
+                        <div className={styles.reviewAuthorInfo}>
+                          <div className={styles.authorAvatar}>
+                            {review.user?.first_name?.[0]}{review.user?.last_name?.[0]}
+                          </div>
+                          <div className={styles.authorDetails}>
+                            <h4 className={styles.authorName}>{review.user?.first_name} {review.user?.last_name}</h4>
+                            <span className={styles.reviewDate}>{new Date(review.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className={styles.reviewStatus}>
+                          <span className={`${styles.statusBadge} ${review.is_approved ? styles.approved : styles.pending}`}>
+                            {review.is_approved ? 'Approved' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className={styles.reviewCardBody}>
+                        <div className={styles.reviewContent}>
+                          <p>{review.content}</p>
+                        </div>
+                        
+                        <div className={styles.reviewMeta}>
+                          <div className={styles.tourInfo}>
+                            <span className={styles.tourLabel}>Tour:</span>
+                            <span className={styles.tourName}>{review.tour?.name || 'Unknown Tour'}</span>
+                          </div>
+                          {review.rating && (
+                            <div className={styles.ratingSection}>
+                              <span className={styles.ratingLabel}>Rating:</span>
+                              <div className={styles.stars}>
+                                {[...Array(5)].map((_, i) => (
+                                  <span key={i} className={`${styles.star} ${i < review.rating ? styles.starFilled : styles.starEmpty}`}>
+                                    ⭐
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className={styles.reviewCardActions}>
+                        <button
+                          className={`${styles.actionButton} ${review.is_approved ? styles.unapproveButton : styles.approveButton}`}
+                          onClick={() => handleToggleReviewApproval(review)}
+                          title={review.is_approved ? 'Unapprove review' : 'Approve review'}
+                        >
+                          {review.is_approved ? (
+                            <>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                                <path d="M18 6L6 18"></path>
+                                <path d="M6 6l12 12"></path>
+                              </svg>
+                              Unapprove
+                            </>
+                          ) : (
+                            <>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                                <polyline points="20,6 9,17 4,12"></polyline>
+                              </svg>
+                              Approve
+                            </>
+                          )}
+                        </button>
+                        <button
+                          className={`${styles.actionButton} ${styles.deleteButton}`}
+                          onClick={() => handleDeleteReview(review)}
+                          title="Delete review permanently"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                            <polyline points="3,6 5,6 21,6"></polyline>
+                            <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {/* Load More Reviews Button */}
+              {reviews.length > 0 && reviewsPagination.hasMore && (
+                <div className={styles.loadMoreContainer}>
+                  <button 
+                    className={styles.loadMoreButton}
+                    onClick={loadMoreReviews}
+                  >
+                    <span className={styles.loadMoreText}>
+                      Load More Reviews
+                    </span>
+                    <span className={styles.loadMoreCount}>
+                      {reviews.length} of {reviewsPagination.total}
+                    </span>
+                    <svg className={styles.loadMoreIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M7 13l3 3 7-7"></path>
+                      <path d="M7 6l3 3 7-7"></path>
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
       </div>
     );
   }
@@ -1552,9 +1866,13 @@ export default function AdminPage() {
                             if (resBookings.ok) {
                               setBookings(parsed.data || parsed || []);
                             }
+                            showSuccess(`Booking ${newStatus} successfully!`);
+                          } else {
+                            const error = await res.json().catch(() => ({ error: "Failed to update booking" }));
+                            showError(error.error || "Failed to update booking");
                           }
                         } catch (err) {
-                          console.error("Failed to update booking:", err);
+                          showError("Failed to update booking");
                         }
                       }}
                     >
@@ -2434,16 +2752,60 @@ export default function AdminPage() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setCreateError("");
+                setValidationErrors({});
+                setClientValidationErrors({});
                 setCreatingUser(true);
                 try {
                   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
                   const headers = { "Content-Type": "application/json" };
                   if (token) headers.Authorization = `Bearer ${token}`;
 
-                  // Note: This would need a dedicated admin user creation endpoint
-                  // For now, we'll show the form but note that user creation typically requires registration
-                  setCreateError("User creation requires registration endpoint. This is a demo form.");
-                  setShowCreateUserModal(false);
+                  // Create user with default password
+                  const userData = {
+                    ...newUser,
+                    password: "DefaultPass123", // Default password for admin-created users
+                    password_confirmation: "DefaultPass123"
+                  };
+
+                  const res = await fetch(`${API_URL}/api/auth/register`, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(userData),
+                  });
+
+                  const text = await res.text();
+                  let parsed;
+                  try {
+                    parsed = JSON.parse(text);
+                  } catch {
+                    parsed = { message: text };
+                  }
+
+                  if (res.ok) {
+                    // Add the created user to the list (parsed.user contains the user data)
+                    const createdUser = {
+                      id: parsed.user.id,
+                      first_name: parsed.user.first_name,
+                      last_name: parsed.user.last_name,
+                      email: parsed.user.email,
+                      username: parsed.user.username,
+                      mobile: parsed.user.mobile,
+                      role: newUser.role, // Use the role from the form
+                      is_active: true,
+                      created_at: new Date().toISOString()
+                    };
+                    setUsers((prev) => [createdUser, ...prev]);
+                    setShowCreateUserModal(false);
+                    setCreateError("");
+                    showSuccess("User created successfully! Default password: DefaultPass123");
+                  } else {
+                    const parsedErrors = parseValidationErrors(parsed);
+                    if (hasValidationErrors(parsedErrors)) {
+                      setValidationErrors(parsedErrors);
+                    } else {
+                      setCreateError(parsed.message || parsed.error || "Failed to create user");
+                    }
+                  }
                 } catch (err) {
                   setCreateError(err.message || "Failed to create user");
                 } finally {
@@ -2456,44 +2818,79 @@ export default function AdminPage() {
                 <input
                   type="text"
                   value={newUser.first_name}
-                  onChange={(e) => setNewUser((n) => ({ ...n, first_name: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewUser((n) => ({ ...n, first_name: value }));
+                    validateUserField('first_name', value);
+                  }}
+                  onBlur={(e) => handleFieldBlur('first_name', e.target.value)}
+                  className={getInputClasses('first_name')}
                   required
                 />
+                <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'first_name')} fieldName="First Name" />
               </div>
               <div className={styles.field}>
                 <label>Last Name</label>
                 <input
                   type="text"
                   value={newUser.last_name}
-                  onChange={(e) => setNewUser((n) => ({ ...n, last_name: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewUser((n) => ({ ...n, last_name: value }));
+                    validateUserField('last_name', value);
+                  }}
+                  onBlur={(e) => handleFieldBlur('last_name', e.target.value)}
+                  className={getInputClasses('last_name')}
                   required
                 />
+                <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'last_name')} fieldName="Last Name" />
               </div>
               <div className={styles.field}>
                 <label>Email</label>
                 <input
                   type="email"
                   value={newUser.email}
-                  onChange={(e) => setNewUser((n) => ({ ...n, email: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewUser((n) => ({ ...n, email: value }));
+                    validateUserField('email', value);
+                  }}
+                  onBlur={(e) => handleFieldBlur('email', e.target.value)}
+                  className={getInputClasses('email')}
                   required
                 />
+                <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'email')} fieldName="Email" />
               </div>
               <div className={styles.field}>
                 <label>Username</label>
                 <input
                   type="text"
                   value={newUser.username}
-                  onChange={(e) => setNewUser((n) => ({ ...n, username: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewUser((n) => ({ ...n, username: value }));
+                    validateUserField('username', value);
+                  }}
+                  onBlur={(e) => handleFieldBlur('username', e.target.value)}
+                  className={getInputClasses('username')}
                   required
                 />
+                <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'username')} fieldName="Username" />
               </div>
               <div className={styles.field}>
                 <label>Mobile</label>
                 <input
                   type="tel"
                   value={newUser.mobile}
-                  onChange={(e) => setNewUser((n) => ({ ...n, mobile: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewUser((n) => ({ ...n, mobile: value }));
+                    validateUserField('mobile', value);
+                  }}
+                  onBlur={(e) => handleFieldBlur('mobile', e.target.value)}
+                  className={getInputClasses('mobile')}
                 />
+                <FieldError error={getCombinedFieldError(validationErrors, clientValidationErrors, 'mobile')} fieldName="Mobile" />
               </div>
               <div className={styles.field}>
                 <label>Role</label>
@@ -2505,6 +2902,7 @@ export default function AdminPage() {
                   <option value="admin">Admin</option>
                   <option value="moderator">Moderator</option>
                 </select>
+                <FieldError error={getFieldError(validationErrors, 'role')} fieldName="Role" />
               </div>
               {createError && <div className={styles.error}>{createError}</div>}
               <div className={styles.formActions}>
@@ -2536,6 +2934,7 @@ export default function AdminPage() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setCreateError("");
+                setValidationErrors({});
                 setUpdatingUser(true);
                 try {
                   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -2592,6 +2991,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, first_name: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'first_name')} fieldName="First Name" />
               </div>
               <div className={styles.field}>
                 <label>Last Name</label>
@@ -2601,6 +3001,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, last_name: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'last_name')} fieldName="Last Name" />
               </div>
               <div className={styles.field}>
                 <label>Email</label>
@@ -2610,6 +3011,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, email: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'email')} fieldName="Email" />
               </div>
               <div className={styles.field}>
                 <label>Username</label>
@@ -2619,6 +3021,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, username: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'username')} fieldName="Username" />
               </div>
               <div className={styles.field}>
                 <label>Mobile</label>
@@ -2627,6 +3030,7 @@ export default function AdminPage() {
                   value={newUser.mobile}
                   onChange={(e) => setNewUser((n) => ({ ...n, mobile: e.target.value }))}
                 />
+                <FieldError error={getFieldError(validationErrors, 'mobile')} fieldName="Mobile" />
               </div>
               <div className={styles.field}>
                 <label>Role</label>
@@ -2638,6 +3042,7 @@ export default function AdminPage() {
                   <option value="admin">Admin</option>
                   <option value="moderator">Moderator</option>
                 </select>
+                <FieldError error={getFieldError(validationErrors, 'role')} fieldName="Role" />
               </div>
               {createError && <div className={styles.error}>{createError}</div>}
               <div className={styles.formActions}>
@@ -3266,6 +3671,8 @@ export default function AdminPage() {
         onClose={() => setShowErrorPopup(false)}
         duration={4000}
       />
+      
     </main>
   );
 }
+

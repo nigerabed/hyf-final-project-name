@@ -16,17 +16,27 @@ export const parseValidationErrors = (response) => {
       if (error.field && error.message) {
         // Convert field name to a more readable format
         const fieldName = formatFieldName(error.field);
-        errors[error.field] = {
-          field: fieldName,
-          message: error.message
-        };
+        // If field already has errors, append to existing message
+        if (errors[error.field]) {
+          errors[error.field].message += `; ${error.message}`;
+        } else {
+          errors[error.field] = {
+            field: fieldName,
+            message: error.message
+          };
+        }
       } else if (error.path && error.message) {
         // Handle Zod-style errors
         const fieldName = formatFieldName(error.path.join('.'));
-        errors[error.path.join('.')] = {
-          field: fieldName,
-          message: error.message
-        };
+        const pathKey = error.path.join('.');
+        if (errors[pathKey]) {
+          errors[pathKey].message += `; ${error.message}`;
+        } else {
+          errors[pathKey] = {
+            field: fieldName,
+            message: error.message
+          };
+        }
       }
     });
   }
@@ -49,25 +59,52 @@ export const parseValidationErrors = (response) => {
  */
 const formatFieldName = (fieldName) => {
   const fieldMap = {
+    // User fields
     'first_name': 'First Name',
     'last_name': 'Last Name',
     'email': 'Email',
     'username': 'Username',
     'password': 'Password',
+    'password_confirmation': 'Password Confirmation',
+    'current_password': 'Current Password',
+    'new_password': 'New Password',
+    'new_password_confirmation': 'New Password Confirmation',
+    'mobile': 'Mobile Number',
+    'profile_image': 'Profile Image',
     'role': 'Role',
+    'is_active': 'Status',
+    
+    // Post fields
     'title': 'Title',
     'content': 'Content',
     'category': 'Category',
     'cover_image_url': 'Cover Image',
-    'name': 'Name',
+    
+    // Tour fields
+    'name': 'Tour Name',
     'description': 'Description',
-    'location': 'Location',
-    'price': 'Price',
-    'duration': 'Duration',
-    'max_participants': 'Max Participants',
+    'price_minor': 'Price',
+    'duration_days': 'Duration (Days)',
+    'capacity': 'Capacity',
+    'currency_code': 'Currency Code',
     'start_date': 'Start Date',
     'end_date': 'End Date',
-    'is_active': 'Status'
+    'destinations': 'Destinations',
+    
+    // Attraction fields
+    'location': 'Location',
+    'type': 'Type',
+    
+    // Review fields
+    'rating': 'Rating',
+    
+    // Comment fields
+    'post_id': 'Post',
+    'tour_id': 'Tour',
+    
+    // General fields
+    'item_id': 'Item ID',
+    'item_type': 'Item Type'
   };
   
   return fieldMap[fieldName] || fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -83,7 +120,7 @@ export const getFieldError = (errors, fieldName) => {
   if (!errors || !fieldName) return null;
   
   const error = errors[fieldName];
-  return error ? error.message : null;
+  return error ? (typeof error === 'string' ? error : error.message) : null;
 };
 
 /**
@@ -93,4 +130,18 @@ export const getFieldError = (errors, fieldName) => {
  */
 export const hasValidationErrors = (errors) => {
   return errors && Object.keys(errors).length > 0;
+};
+
+/**
+ * Get combined error message from server and client validation errors
+ * @param {Object} serverErrors - Server validation errors
+ * @param {Object} clientErrors - Client validation errors  
+ * @param {string} fieldName - Field name to get error for
+ * @returns {string|null} - Combined error message or null
+ */
+export const getCombinedFieldError = (serverErrors, clientErrors, fieldName) => {
+  const serverError = getFieldError(serverErrors, fieldName);
+  const clientError = getFieldError(clientErrors, fieldName);
+  
+  return serverError || clientError;
 };
