@@ -23,6 +23,7 @@ import { useAttractionSearch } from "../../hooks/useAttractionSearch";
 import { useCommentSearch } from "../../hooks/useCommentSearch";
 import { useReviewSearch } from "../../hooks/useReviewSearch";
 import { parseValidationErrors, getFieldError, hasValidationErrors, getCombinedFieldError } from "../../utils/validationUtils";
+import { UploadButton } from "@uploadthing/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 

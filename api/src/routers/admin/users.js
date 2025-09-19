@@ -3,13 +3,7 @@ import knex from "../../db.mjs";
 import bcrypt from "bcryptjs";
 import { authenticateToken, requireRole } from "../../middleware/auth.js";
 import { validateRequest } from "../../middleware/validation.js";
-<<<<<<< HEAD
-import { adminUserCreateSchema, adminUserUpdateSchema } from "../../validation/schemas.js";
-=======
-import { adminUserUpdateSchema } from "../../validation/schemas.js";
-import { adminCreateUserSchema } from "../../validation/schemas.js";
-import bcrypt from "bcryptjs";
->>>>>>> 32df448e52fc097392287dba418001484cf54be2
+import { adminUserCreateSchema, adminUserUpdateSchema, adminCreateUserSchema } from "../../validation/schemas.js";
 
 const adminUsersRouter = express.Router();
 adminUsersRouter.use(authenticateToken, requireRole(["admin"]));
