@@ -49,20 +49,16 @@ export default function Header() {
     // Listen for storage changes (e.g., when user logs out in another tab)
     window.addEventListener("storage", checkAuthStatus);
 
-    
     // Listen for custom events when localStorage is updated in the same tab
     const handleUserUpdate = () => {
       checkAuthStatus();
     };
     window.addEventListener("userUpdated", handleUserUpdate);
-    
+
     return () => {
       window.removeEventListener("storage", checkAuthStatus);
       window.removeEventListener("userUpdated", handleUserUpdate);
     };
-  }, []);
-
-    return () => window.removeEventListener("storage", checkAuthStatus);
   }, [pathname]);
 
   // close menu when route changes
@@ -126,14 +122,14 @@ export default function Header() {
                     height={32}
                     className={styles.avatarImage}
                     onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
+                      e.target.style.display = "none";
+                      e.target.nextSibling.style.display = "flex";
                     }}
                   />
                 ) : null}
-                <div 
+                <div
                   className={styles.avatarPlaceholder}
-                  style={{ display: user?.profile_image ? 'none' : 'flex' }}
+                  style={{ display: user?.profile_image ? "none" : "flex" }}
                 >
                   {(user?.first_name || user?.username || "U")[0].toUpperCase()}
                 </div>
@@ -142,7 +138,11 @@ export default function Header() {
                 <Link
                   href={user?.role === "admin" ? "/admin" : "/user"}
                   className={styles.dashboardLink}
-                  aria-label={user?.role === "admin" ? "Admin Dashboard" : "User Dashboard"}
+                  aria-label={
+                    user?.role === "admin"
+                      ? "Admin Dashboard"
+                      : "User Dashboard"
+                  }
                 >
                   <svg
                     className={styles.buttonIcon}
@@ -155,7 +155,11 @@ export default function Header() {
                     <circle cx="12" cy="7" r="4" />
                   </svg>
                 </Link>
-                <button onClick={handleLogout} className={styles.logoutBtn} aria-label="Logout">
+                <button
+                  onClick={handleLogout}
+                  className={styles.logoutBtn}
+                  aria-label="Logout"
+                >
                   <svg
                     className={styles.buttonIcon}
                     viewBox="0 0 24 24"
@@ -205,17 +209,19 @@ export default function Header() {
                       height={40}
                       className={styles.mobileAvatarImage}
                       onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
+                        e.target.style.display = "none";
+                        e.target.nextSibling.style.display = "flex";
                       }}
                     />
                   ) : null}
-                  <div 
+                  <div
                     className={styles.mobileAvatarPlaceholder}
-                    style={{ display: user?.profile_image ? 'none' : 'flex' }}
+                    style={{ display: user?.profile_image ? "none" : "flex" }}
                   >
-                      {(user?.first_name || user?.username || "U")[0].toUpperCase()}
-                    </div>
+                    {(user?.first_name ||
+                      user?.username ||
+                      "U")[0].toUpperCase()}
+                  </div>
                 </div>
                 <Link
                   href={user?.role === "admin" ? "/admin" : "/user"}
@@ -232,7 +238,10 @@ export default function Header() {
                     <circle cx="12" cy="7" r="4" />
                   </svg>
                 </Link>
-                <button onClick={handleLogout} className={styles.mobileLogoutBtn}>
+                <button
+                  onClick={handleLogout}
+                  className={styles.mobileLogoutBtn}
+                >
                   <svg
                     className={styles.buttonIcon}
                     viewBox="0 0 24 24"
