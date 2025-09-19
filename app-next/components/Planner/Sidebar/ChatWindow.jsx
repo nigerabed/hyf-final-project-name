@@ -17,8 +17,14 @@ export default function ChatWindow({
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
-    // Add a class when deactivated for styling
     <div
       className={`${styles.sidebarModule} ${
         isDeactivated ? styles.deactivatedChat : ""
@@ -33,7 +39,8 @@ export default function ChatWindow({
         ) : messages && messages.length > 0 ? (
           messages.map((msg) => (
             <div key={msg.id} className={styles.message}>
-              <strong>{msg.user.first_name}:</strong> {msg.content}
+              <strong>{msg.user?.first_name || "Unknown User"}:</strong>{" "}
+              {msg.content}
             </div>
           ))
         ) : (
@@ -41,14 +48,15 @@ export default function ChatWindow({
         )}
       </div>
       <div className={styles.chatInputArea}>
-        <input
-          type="text"
+        <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={
             isDeactivated ? "Unavailable for solo trips" : "Type a message..."
           }
           disabled={isDeactivated || isLoading}
+          rows="1"
         />
         <Button onClick={handleSend} disabled={isDeactivated || isLoading}>
           Send

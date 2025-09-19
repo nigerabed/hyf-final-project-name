@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-
 import styles from "./planner.module.css";
 import CreateTripForm from "../../../components/planner/CreateTripForm/CreateTripForm";
 import ProgressTracker from "../../../components/planner/ProgressTracker/ProgressTracker";
@@ -90,10 +89,17 @@ export default function PlannerPage() {
         const trip = tripResult.data;
         setTripData(trip);
 
+        const owner = trip.owner;
         const collaborators = trip.collaborators || [];
-        setAllMembers(
-          currentUser ? [currentUser, ...collaborators] : collaborators
+        let combinedMembers = [];
+        if (owner) {
+          combinedMembers.push(owner);
+        }
+        combinedMembers = [...combinedMembers, ...collaborators];
+        const uniqueMembers = Array.from(
+          new Map(combinedMembers.map((item) => [item.id, item])).values()
         );
+        setAllMembers(uniqueMembers);
 
         checkOwnership(trip);
 
@@ -113,7 +119,13 @@ export default function PlannerPage() {
         }
         if (chatRes.ok) {
           const chatResult = await chatRes.json();
-          setMessages(chatResult.data);
+          const formattedMessages = chatResult.data.map((msg) => ({
+            ...msg,
+            user: {
+              first_name: msg.first_name,
+            },
+          }));
+          setMessages(formattedMessages);
         }
 
         if (isInitialLoad) {
@@ -175,7 +187,6 @@ export default function PlannerPage() {
       const newTrip = result.data;
       window.location.replace(`/planner/${newTrip.id}`);
     } catch (error) {
-      console.error("Error creating trip:", error);
       setError(`Failed to create trip: ${error.message}. Please try again.`);
     } finally {
       setIsLoading(false);
@@ -244,7 +255,6 @@ export default function PlannerPage() {
         setPlanningPhase("shortlisting");
       }
     } catch (error) {
-      console.error("Error getting AI suggestions:", error);
       setError(
         `Could not get suggestions: ${error.message}. Please try again.`
       );
@@ -277,17 +287,13 @@ export default function PlannerPage() {
         throw new Error(errorData.error || "Failed to add to shortlist.");
       }
       const newItem = await response.json();
-      // **MODIFIED**: We now expect the full attraction data back from the API
-      // to ensure we have the correct shortlistItemId.
       setShortlistedItems((prevItems) => [...prevItems, newItem.data]);
       setError(null);
     } catch (error) {
-      console.error("Error adding to shortlist:", error);
       setError(`Could not add item to shortlist: ${error.message}.`);
     }
   };
 
-  // **MODIFIED**: Added new function to handle removing items from the shortlist.
   const handleRemoveFromShortlist = async (itemToRemove) => {
     setError(null);
     const token = localStorage.getItem("token");
@@ -312,7 +318,6 @@ export default function PlannerPage() {
       );
       setError(null);
     } catch (error) {
-      console.error("Error removing from shortlist:", error);
       setError(`Could not remove item from shortlist: ${error.message}.`);
     }
   };
@@ -346,7 +351,6 @@ export default function PlannerPage() {
         })
       );
     } catch (error) {
-      console.error("Error voting:", error);
       setError(`Could not process your vote: ${error.message}.`);
     }
   };
@@ -377,7 +381,6 @@ export default function PlannerPage() {
       setItinerary(result.data);
       setPlanningPhase("itinerary");
     } catch (error) {
-      console.error("Error generating itinerary:", error);
       setError(
         `Could not generate itinerary: ${error.message}. Please ensure items are shortlisted.`
       );
@@ -416,7 +419,6 @@ export default function PlannerPage() {
       const result = await response.json();
       setItinerary(result.data);
     } catch (error) {
-      console.error("Error modifying itinerary:", error);
       setError(
         `Could not modify itinerary: ${error.message}. Please try a different command.`
       );
@@ -458,7 +460,6 @@ export default function PlannerPage() {
       }
       setPlanningPhase("flights");
     } catch (error) {
-      console.error("Error confirming accommodation:", error);
       setError(`Could not save your hotel selection: ${error.message}.`);
     } finally {
       setIsLoading(false);
@@ -499,7 +500,6 @@ export default function PlannerPage() {
       setPlanningPhase("flights");
       setView("booking");
     } catch (error) {
-      console.error("Error saving flight selection:", error);
       setError(`Could not save your flight selection: ${error.message}.`);
     } finally {
       setIsLoading(false);
@@ -540,7 +540,6 @@ export default function PlannerPage() {
       alert("Booking successful! Your trip is confirmed.");
       window.location.href = "/user";
     } catch (error) {
-      console.error("Error confirming booking:", error);
       setError(`There was an error confirming your booking: ${error.message}.`);
     } finally {
       setIsLoading(false);
@@ -568,7 +567,6 @@ export default function PlannerPage() {
       }
       fetchTripData();
     } catch (error) {
-      console.error(error);
       setError(`Failed to send message: ${error.message}.`);
     }
   };
@@ -593,7 +591,6 @@ export default function PlannerPage() {
           <SuggestionGrid
             suggestions={suggestions}
             onAddToShortlist={handleAddToShortlist}
-            // **MODIFIED**: Pass remove handler
             onRemoveFromShortlist={handleRemoveFromShortlist}
             shortlistedItems={shortlistedItems}
           />

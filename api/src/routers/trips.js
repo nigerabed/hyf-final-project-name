@@ -33,7 +33,6 @@ const createTripSchema = z.object({
     .optional(),
 });
 
-// Helper function to check if a user is an owner or collaborator
 const checkPermissions = async (req, res, next) => {
   const { tripId } = req.params;
   const userId = req.user.id || req.user.sub;
@@ -54,7 +53,6 @@ const checkPermissions = async (req, res, next) => {
   next();
 };
 
-// GET my trips
 router.get("/", async (req, res) => {
   const userId = req.user.id || req.user.sub;
   try {
@@ -75,7 +73,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET a single trip
 router.get("/:tripId", checkPermissions, async (req, res) => {
   const { trip } = req;
   try {
@@ -87,6 +84,11 @@ router.get("/:tripId", checkPermissions, async (req, res) => {
       .join("users as u", "tc.user_id", "u.id")
       .where("tc.trip_id", trip.id)
       .select("u.id", "u.first_name", "u.last_name", "u.profile_image");
+
+    const owner = await knex("users")
+      .where({ id: trip.owner_id })
+      .select("id", "first_name", "last_name", "profile_image")
+      .first();
 
     const accommodations = await knex("travel_plan_accommodations")
       .where({ travel_plan_id: trip.id })
@@ -100,6 +102,7 @@ router.get("/:tripId", checkPermissions, async (req, res) => {
       message: "Trip retrieved successfully.",
       data: {
         ...trip,
+        owner,
         destinations,
         collaborators,
         accommodations,
@@ -112,7 +115,6 @@ router.get("/:tripId", checkPermissions, async (req, res) => {
   }
 });
 
-// Create a new empty trip
 router.post("/", validateRequest(createTripSchema), async (req, res) => {
   const { name, description, start_date, duration_days } = req.validatedData;
   const userId = req.user.id || req.user.sub;
@@ -137,7 +139,6 @@ router.post("/", validateRequest(createTripSchema), async (req, res) => {
   }
 });
 
-// Create a complete trip with destinations
 router.post("/build", validateRequest(createTripSchema), async (req, res) => {
   const { name, description, destinations } = req.validatedData;
   const userId = req.user.id || req.user.sub;
@@ -180,7 +181,6 @@ router.post("/build", validateRequest(createTripSchema), async (req, res) => {
   }
 });
 
-// Update a trip
 router.put("/:tripId", checkPermissions, async (req, res) => {
   const { tripId } = req.params;
   const { name, description } = req.body;
@@ -199,7 +199,6 @@ router.put("/:tripId", checkPermissions, async (req, res) => {
   }
 });
 
-// Delete a trip
 router.delete("/:tripId", async (req, res) => {
   const { tripId } = req.params;
   const userId = req.user.id || req.user.sub;
@@ -222,7 +221,6 @@ router.delete("/:tripId", async (req, res) => {
   }
 });
 
-// Nested Routes
 router.use("/:tripId/destinations", checkPermissions, tripDestinationsRouter);
 router.use(
   "/:tripId/accommodations",
