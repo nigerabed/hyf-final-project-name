@@ -109,7 +109,12 @@ export default function Login() {
           console.warn("Failed to persist token to localStorage", e);
         }
       }
+
+      
+      // Store user data including role for redirect logic
+
       // persist user object as well so Header and other components can read it
+
       if (parsed.body?.user) {
         try {
           localStorage.setItem("user", JSON.stringify(parsed.body.user));
