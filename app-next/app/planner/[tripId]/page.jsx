@@ -39,14 +39,22 @@ export default function PlannerPage() {
   const [selectedAccommodation, setSelectedAccommodation] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [itinerary, setItinerary] = useState(null);
-  const [collaborators, setCollaborators] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      setCurrentUser(JSON.parse(userData));
+    }
+  }, []);
+
+  const isSoloTrip = allMembers.length <= 1;
 
   const checkOwnership = (trip) => {
-    const userData = localStorage.getItem("user");
-    if (userData && trip) {
-      const currentUser = JSON.parse(userData);
+    if (currentUser && trip) {
       setIsOwner(trip.owner_id === currentUser.id);
     }
   };
@@ -79,18 +87,21 @@ export default function PlannerPage() {
         if (!tripRes.ok) throw new Error("Failed to load trip data.");
 
         const tripResult = await tripRes.json();
-        setTripData(tripResult.data);
-        setCollaborators(tripResult.data.collaborators || []);
-        checkOwnership(tripResult.data);
+        const trip = tripResult.data;
+        setTripData(trip);
 
-        if (
-          tripResult.data.accommodations &&
-          tripResult.data.accommodations.length > 0
-        ) {
-          setSelectedAccommodation(tripResult.data.accommodations[0]);
+        const collaborators = trip.collaborators || [];
+        setAllMembers(
+          currentUser ? [currentUser, ...collaborators] : collaborators
+        );
+
+        checkOwnership(trip);
+
+        if (trip.accommodations && trip.accommodations.length > 0) {
+          setSelectedAccommodation(trip.accommodations[0]);
         }
-        if (tripResult.data.flights && tripResult.data.flights.length > 0) {
-          setSelectedFlight(tripResult.data.flights[0]);
+        if (trip.flights && trip.flights.length > 0) {
+          setSelectedFlight(trip.flights[0]);
         }
 
         const shortlistResult = await shortlistRes.json();
@@ -108,9 +119,7 @@ export default function PlannerPage() {
         if (isInitialLoad) {
           setView("planner");
           const initialPhase =
-            tripResult.data.destinations?.length > 0
-              ? "preferences"
-              : "no_destinations";
+            trip.destinations?.length > 0 ? "preferences" : "no_destinations";
           setPlanningPhase(initialPhase);
         }
       } catch (error) {
@@ -120,21 +129,23 @@ export default function PlannerPage() {
         );
       }
     },
-    [tripId]
+    [tripId, currentUser]
   );
 
-  // Initial load effect
   useEffect(() => {
-    fetchTripData(true);
-  }, [tripId, fetchTripData]);
+    if (currentUser || tripId === "new") {
+      fetchTripData(true);
+    }
+  }, [tripId, fetchTripData, currentUser]);
 
-  // Periodic refresh for chat/shortlist
   useEffect(() => {
     const intervalId = setInterval(() => {
-      fetchTripData();
+      if (!isSoloTrip) {
+        fetchTripData();
+      }
     }, 15000);
     return () => clearInterval(intervalId);
-  }, [fetchTripData]);
+  }, [fetchTripData, isSoloTrip]);
 
   const handleTripCreated = async (formData) => {
     setError(null);
@@ -210,7 +221,28 @@ export default function PlannerPage() {
       }
       const returnedSuggestions = await response.json();
       setSuggestions(returnedSuggestions.data);
-      setPlanningPhase("shortlisting");
+
+      if (isSoloTrip) {
+        const autoShortlistPromises = returnedSuggestions.data.map(
+          (attraction) =>
+            fetch(
+              `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ attraction_id: attraction.id }),
+              }
+            )
+        );
+        await Promise.all(autoShortlistPromises);
+        setPlanningPhase("shortlisting");
+        fetchTripData();
+      } else {
+        setPlanningPhase("shortlisting");
+      }
     } catch (error) {
       console.error("Error getting AI suggestions:", error);
       setError(
@@ -245,14 +277,43 @@ export default function PlannerPage() {
         throw new Error(errorData.error || "Failed to add to shortlist.");
       }
       const newItem = await response.json();
-      setShortlistedItems((prevItems) => [
-        ...prevItems,
-        { ...attraction, shortlistItemId: newItem.data.id },
-      ]);
+      // **MODIFIED**: We now expect the full attraction data back from the API
+      // to ensure we have the correct shortlistItemId.
+      setShortlistedItems((prevItems) => [...prevItems, newItem.data]);
       setError(null);
     } catch (error) {
       console.error("Error adding to shortlist:", error);
       setError(`Could not add item to shortlist: ${error.message}.`);
+    }
+  };
+
+  // **MODIFIED**: Added new function to handle removing items from the shortlist.
+  const handleRemoveFromShortlist = async (itemToRemove) => {
+    setError(null);
+    const token = localStorage.getItem("token");
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist/${itemToRemove.shortlistItemId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to remove from shortlist.");
+      }
+      setShortlistedItems((prevItems) =>
+        prevItems.filter(
+          (item) => item.shortlistItemId !== itemToRemove.shortlistItemId
+        )
+      );
+      setError(null);
+    } catch (error) {
+      console.error("Error removing from shortlist:", error);
+      setError(`Could not remove item from shortlist: ${error.message}.`);
     }
   };
 
@@ -532,6 +593,8 @@ export default function PlannerPage() {
           <SuggestionGrid
             suggestions={suggestions}
             onAddToShortlist={handleAddToShortlist}
+            // **MODIFIED**: Pass remove handler
+            onRemoveFromShortlist={handleRemoveFromShortlist}
             shortlistedItems={shortlistedItems}
           />
         );
@@ -592,6 +655,7 @@ export default function PlannerPage() {
         <ProgressTracker
           currentPhase={planningPhase}
           onPhaseChange={setPlanningPhase}
+          isSoloTrip={isSoloTrip}
         />
         <div className={styles.plannerContent}>
           <aside className={styles.sidebarContainer}>
@@ -611,10 +675,11 @@ export default function PlannerPage() {
               onSelectFlights={handleSelectFlights}
               onGoToBooking={handleGoToBooking}
               onFinalize={handleSaveFlight}
+              isSoloTrip={isSoloTrip}
             />
           </aside>
           <section className={styles.mainAreaContainer}>
-            <MainArea isOwner={isOwner} collaborators={collaborators}>
+            <MainArea isOwner={isOwner} members={allMembers}>
               {renderMainContent()}
             </MainArea>
           </section>
@@ -633,7 +698,7 @@ export default function PlannerPage() {
           tripData={tripData}
           onPay={handleConfirmBooking}
           isLoading={isLoading}
-          initialTravelers={collaborators.length || 1}
+          initialTravelers={allMembers.length || 1}
         />
       </main>
     );

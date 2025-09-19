@@ -4,7 +4,6 @@ import { authenticateToken } from "../middleware/auth.js";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validation.js";
 
-// Import nested routers
 import tripDestinationsRouter from "./tripDestinations.js";
 import tripAccommodationsRouter from "./tripAccommodations.js";
 import tripFlightsRouter from "./tripFlights.js";
@@ -12,6 +11,7 @@ import aiPlannerRouter from "./aiPlanner.js";
 import shortlistRouter from "./shortlist.js";
 import itineraryRouter from "./itinerary.js";
 import chatRouter from "./chat.js";
+import invitationsRouter from "./invitations.js";
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -234,5 +234,6 @@ router.use("/:tripId/ai-suggestions", checkPermissions, aiPlannerRouter);
 router.use("/:tripId/shortlist", checkPermissions, shortlistRouter);
 router.use("/:tripId/itinerary", checkPermissions, itineraryRouter);
 router.use("/:tripId/chat", checkPermissions, chatRouter);
+router.use("/:tripId/invite", checkPermissions, invitationsRouter);
 
 export default router;

@@ -7,7 +7,7 @@ const router = express.Router({ mergeParams: true });
 router.use(authenticateToken);
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const model = genAI.getGenerativeModel({ model: "Gemini 2.5 Flash-Lite" });
 
 router.post("/", async (req, res) => {
   const { tripId } = req.params;

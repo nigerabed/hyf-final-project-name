@@ -1,7 +1,11 @@
 import styles from "./ProgressTracker.module.css";
 
-export default function ProgressTracker({ currentPhase, onPhaseChange }) {
-  const phases = [
+export default function ProgressTracker({
+  currentPhase,
+  onPhaseChange,
+  isSoloTrip,
+}) {
+  let phases = [
     { key: "preferences", label: "1. Preferences" },
     { key: "shortlisting", label: "2. Shortlist" },
     { key: "voting", label: "3. Vote" },
@@ -9,6 +13,10 @@ export default function ProgressTracker({ currentPhase, onPhaseChange }) {
     { key: "accommodations", label: "5. Hotel" },
     { key: "flights", label: "6. Flights" },
   ];
+
+  if (isSoloTrip) {
+    phases = phases.filter((phase) => phase.key !== "voting");
+  }
 
   const currentPhaseIndex = phases.findIndex((p) => p.key === currentPhase);
 

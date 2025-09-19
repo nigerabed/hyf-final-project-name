@@ -1,45 +1,59 @@
-"use client";
-
 import { useState } from "react";
 import styles from "./Sidebar.module.css";
 import Button from "../Button/Button";
 
 export default function ChatWindow({
-  messages = [],
+  messages,
   onSendMessage,
   isLoading,
+  isDeactivated,
 }) {
-  const [newMessage, setNewMessage] = useState("");
+  const [message, setMessage] = useState("");
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-    onSendMessage(newMessage);
-    setNewMessage("");
+  const handleSend = () => {
+    if (message.trim()) {
+      onSendMessage(message.trim());
+      setMessage("");
+    }
   };
 
   return (
-    <div className={styles.sidebarModule}>
-      <h3>Trip Chat</h3>
-      <div className={styles.chatMessages}>
-        {messages.map((msg) => (
-          <div key={msg.id}>
-            <b>{msg.first_name}:</b> {msg.content}
-          </div>
-        ))}
+    // Add a class when deactivated for styling
+    <div
+      className={`${styles.sidebarModule} ${
+        isDeactivated ? styles.deactivatedChat : ""
+      }`}
+    >
+      <h3>{isDeactivated ? "Chat" : "Group Chat"}</h3>
+      <div className={styles.messageList}>
+        {isDeactivated ? (
+          <p className={styles.deactivatedMessage}>
+            Chat is disabled for solo trips.
+          </p>
+        ) : messages && messages.length > 0 ? (
+          messages.map((msg) => (
+            <div key={msg.id} className={styles.message}>
+              <strong>{msg.user.first_name}:</strong> {msg.content}
+            </div>
+          ))
+        ) : (
+          <p>No messages yet.</p>
+        )}
       </div>
-      <form onSubmit={handleSubmit}>
-        <textarea
-          className={styles.textarea}
-          placeholder="Type a message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          disabled={isLoading}
+      <div className={styles.chatInputArea}>
+        <input
+          type="text"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder={
+            isDeactivated ? "Unavailable for solo trips" : "Type a message..."
+          }
+          disabled={isDeactivated || isLoading}
         />
-        <Button type="submit" variant="secondary" disabled={isLoading}>
-          {isLoading ? "Sending..." : "Send"}
+        <Button onClick={handleSend} disabled={isDeactivated || isLoading}>
+          Send
         </Button>
-      </form>
+      </div>
     </div>
   );
 }

@@ -23,6 +23,7 @@ export default function Sidebar({
   onSelectFlights,
   onFinalize,
   onGoToBooking,
+  isSoloTrip,
 }) {
   const renderModule = () => {
     switch (phase) {
@@ -35,12 +36,22 @@ export default function Sidebar({
         );
       case "shortlisting":
         return (
-          <TripShortlist items={shortlistedItems} onStartVote={onStartVote} />
+          <TripShortlist
+            items={shortlistedItems}
+            onStartVote={onStartVote}
+            isSoloTrip={isSoloTrip}
+            onGenerateItinerary={onGenerateItinerary} // **MODIFIED**: Pass handler down
+          />
         );
       case "voting":
         return (
           <>
-            <TripShortlist items={shortlistedItems} onStartVote={onStartVote} />
+            <TripShortlist
+              items={shortlistedItems}
+              onStartVote={onStartVote}
+              isSoloTrip={isSoloTrip}
+              onGenerateItinerary={onGenerateItinerary} // **MODIFIED**: Pass handler down
+            />
             <VotingPoll
               items={shortlistedItems}
               onGenerateItinerary={onGenerateItinerary}
@@ -78,6 +89,7 @@ export default function Sidebar({
         messages={messages}
         onSendMessage={onSendMessage}
         isLoading={isLoading}
+        isDeactivated={isSoloTrip}
       />
     </aside>
   );
