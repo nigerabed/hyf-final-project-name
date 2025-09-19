@@ -37,10 +37,12 @@ import adminModerationRouter from "./routers/admin/moderation.js";
 const app = express();
 
 // CORS configuration for frontend
-app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:3002"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "http://localhost:3002"],
+    credentials: true,
+  })
+);
 const PORT = process.env.PORT || 3001;
 
 const apiRouter = express.Router();
@@ -50,8 +52,6 @@ const apiRouter = express.Router();
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.static("public"));
- 
-
 
 // --- Optional: Response Body Logger for Debugging ---
 const logResponseBody = (req, res, next) => {
