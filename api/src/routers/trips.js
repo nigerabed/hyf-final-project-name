@@ -12,6 +12,7 @@ import shortlistRouter from "./shortlist.js";
 import itineraryRouter from "./itinerary.js";
 import chatRouter from "./chat.js";
 import invitationsRouter from "./invitations.js";
+import tripStateRouter from "./tripState.js";
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -56,17 +57,22 @@ const checkPermissions = async (req, res, next) => {
 router.get("/", async (req, res) => {
   const userId = req.user.id || req.user.sub;
   try {
-    const trips = await knex("travel_plans")
+    const ownedTrips = await knex("travel_plans")
       .select("id", "name", "description", "cover_image_url")
       .where({ owner_id: userId, plan_type: "user" });
-    const collaboratorTrips = await knex("trip_collaborators as tc")
+
+    const collaboratedTrips = await knex("trip_collaborators as tc")
       .join("travel_plans as tp", "tc.trip_id", "tp.id")
       .where("tc.user_id", userId)
       .andWhere("tp.plan_type", "user")
       .select("tp.id", "tp.name", "tp.description", "tp.cover_image_url");
 
-    const allTrips = [...trips, ...collaboratorTrips];
-    res.json({ message: "Trips retrieved successfully.", data: allTrips });
+    const allTrips = [...ownedTrips, ...collaboratedTrips];
+    const uniqueTrips = Array.from(
+      new Map(allTrips.map((trip) => [trip.id, trip])).values()
+    );
+
+    res.json({ message: "Trips retrieved successfully.", data: uniqueTrips });
   } catch (error) {
     console.error("Error fetching trips:", error);
     res.status(500).json({ error: "Failed to retrieve trips." });
@@ -150,6 +156,15 @@ router.post("/build", validateRequest(createTripSchema), async (req, res) => {
   }
 
   try {
+    const userExists = await knex("users").where({ id: userId }).first();
+    if (!userExists) {
+      return res
+        .status(401)
+        .json({
+          error: "Authentication error: User not found. Please log in again.",
+        });
+    }
+
     await knex.transaction(async (trx) => {
       const [newTrip] = await trx("travel_plans")
         .insert({
@@ -159,6 +174,11 @@ router.post("/build", validateRequest(createTripSchema), async (req, res) => {
           plan_type: "user",
         })
         .returning("*");
+
+      await trx("trip_states").insert({
+        trip_id: newTrip.id,
+        planning_phase: "preferences",
+      });
 
       const destinationData = destinations.map((d) => ({
         travel_plan_id: newTrip.id,
@@ -233,5 +253,6 @@ router.use("/:tripId/shortlist", checkPermissions, shortlistRouter);
 router.use("/:tripId/itinerary", checkPermissions, itineraryRouter);
 router.use("/:tripId/chat", checkPermissions, chatRouter);
 router.use("/:tripId/invite", checkPermissions, invitationsRouter);
+router.use("/:tripId/state", checkPermissions, tripStateRouter);
 
 export default router;

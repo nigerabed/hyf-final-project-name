@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import styles from "./planner.module.css";
 import CreateTripForm from "../../../components/planner/CreateTripForm/CreateTripForm";
 import ProgressTracker from "../../../components/planner/ProgressTracker/ProgressTracker";
@@ -26,8 +25,27 @@ const ErrorBanner = ({ message, onDismiss }) => {
   );
 };
 
+const TripBookedView = ({ tripName }) => {
+  const router = useRouter();
+  useEffect(() => {
+    const timer = setTimeout(() => router.push("/user"), 5000);
+    return () => clearTimeout(timer);
+  }, [router]);
+  return (
+    <div className={styles.bookedViewContainer}>
+      <h2>This Trip Has Been Booked!</h2>
+      <p>
+        Your plans for <strong>{tripName}</strong> are confirmed.
+      </p>
+      <p>You can find your booked trips in your user profile.</p>
+      <p className={styles.redirectMessage}>Redirecting shortly...</p>
+    </div>
+  );
+};
+
 export default function PlannerPage() {
   const { tripId } = useParams();
+  const router = useRouter();
   const [view, setView] = useState("loading");
   const [tripData, setTripData] = useState(null);
   const [planningPhase, setPlanningPhase] = useState("preferences");
@@ -43,6 +61,13 @@ export default function PlannerPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
+  const statePollTimer = useRef(null);
+  const planningPhaseRef = useRef(planningPhase);
+
+  useEffect(() => {
+    planningPhaseRef.current = planningPhase;
+  }, [planningPhase]);
+
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
@@ -52,11 +77,39 @@ export default function PlannerPage() {
 
   const isSoloTrip = allMembers.length <= 1;
 
-  const checkOwnership = (trip) => {
-    if (currentUser && trip) {
-      setIsOwner(trip.owner_id === currentUser.id);
-    }
-  };
+  const updatePlanningPhase = useCallback(
+    async (newPhase) => {
+      if (!isOwner) {
+        setError("Only the trip owner can advance the planning stage.");
+        return;
+      }
+      const token = localStorage.getItem("token");
+      setIsLoading(true);
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/state`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ phase: newPhase }),
+          }
+        );
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Failed to update phase");
+        }
+        setPlanningPhase(newPhase);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [tripId, isOwner]
+  );
 
   const fetchTripData = useCallback(
     async (isInitialLoad = false) => {
@@ -66,7 +119,7 @@ export default function PlannerPage() {
       }
       const token = localStorage.getItem("token");
       try {
-        const res = await Promise.all([
+        const responses = await Promise.all([
           fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -82,26 +135,37 @@ export default function PlannerPage() {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
-        const [tripRes, shortlistRes, itineraryRes, chatRes] = res;
-        if (!tripRes.ok) throw new Error("Failed to load trip data.");
+
+        for (const res of responses) {
+          if (res.status === 401 || res.status === 403) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            router.push(`/login?redirect=${window.location.pathname}`);
+            return;
+          }
+          if (!res.ok && res.status !== 404) {
+            const errorData = await res.json();
+            throw new Error(
+              errorData.error ||
+                `A data request failed with status ${res.status}`
+            );
+          }
+        }
+
+        const [tripRes, shortlistRes, itineraryRes, chatRes] = responses;
 
         const tripResult = await tripRes.json();
         const trip = tripResult.data;
         setTripData(trip);
 
-        const owner = trip.owner;
-        const collaborators = trip.collaborators || [];
-        let combinedMembers = [];
-        if (owner) {
-          combinedMembers.push(owner);
-        }
-        combinedMembers = [...combinedMembers, ...collaborators];
-        const uniqueMembers = Array.from(
-          new Map(combinedMembers.map((item) => [item.id, item])).values()
-        );
-        setAllMembers(uniqueMembers);
+        const ownerStatus = currentUser?.id === trip.owner_id;
+        setIsOwner(ownerStatus);
 
-        checkOwnership(trip);
+        const { owner, collaborators = [] } = trip;
+        const members = owner ? [owner, ...collaborators] : collaborators;
+        setAllMembers(
+          Array.from(new Map(members.map((m) => [m.id, m])).values())
+        );
 
         if (trip.accommodations && trip.accommodations.length > 0) {
           setSelectedAccommodation(trip.accommodations[0]);
@@ -110,54 +174,82 @@ export default function PlannerPage() {
           setSelectedFlight(trip.flights[0]);
         }
 
-        const shortlistResult = await shortlistRes.json();
-        setShortlistedItems(shortlistResult.data);
+        if (shortlistRes.ok) {
+          const shortlistResult = await shortlistRes.json();
+          setShortlistedItems(shortlistResult.data);
+        }
 
-        if (itineraryRes.ok) {
+        if (
+          itineraryRes.ok &&
+          itineraryRes.headers.get("Content-Length") !== "0"
+        ) {
           const itineraryResult = await itineraryRes.json();
           setItinerary(itineraryResult.data);
+        } else {
+          setItinerary(null);
         }
+
         if (chatRes.ok) {
           const chatResult = await chatRes.json();
-          const formattedMessages = chatResult.data.map((msg) => ({
-            ...msg,
-            user: {
-              first_name: msg.first_name,
-            },
-          }));
-          setMessages(formattedMessages);
+          setMessages(
+            chatResult.data.map((msg) => ({
+              ...msg,
+              user: { first_name: msg.first_name, id: msg.user_id },
+            }))
+          );
         }
 
         if (isInitialLoad) {
           setView("planner");
-          const initialPhase =
-            trip.destinations?.length > 0 ? "preferences" : "no_destinations";
-          setPlanningPhase(initialPhase);
         }
       } catch (error) {
-        console.error("Error fetching trip data:", error);
-        setError(
-          "Could not load your trip data. Please ensure you are logged in and have permission."
-        );
+        setError(error.message);
       }
     },
-    [tripId, currentUser]
+    [tripId, currentUser, router]
   );
 
-  useEffect(() => {
-    if (currentUser || tripId === "new") {
-      fetchTripData(true);
+  const pollData = useCallback(async () => {
+    if (!currentUser || !tripId || tripId === "new") return;
+
+    // First, check the lightweight state endpoint
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/state`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) return;
+      const result = await res.json();
+
+      // If the phase has changed, trigger a full refresh and update the state
+      if (planningPhaseRef.current !== result.data.planning_phase) {
+        setPlanningPhase(result.data.planning_phase);
+        await fetchTripData(true);
+      } else {
+        // If the phase is the same, just refresh the data silently
+        await fetchTripData(false);
+      }
+    } catch (err) {
+      console.error("Data poll failed:", err);
     }
   }, [tripId, fetchTripData, currentUser]);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (!isSoloTrip) {
-        fetchTripData();
-      }
-    }, 15000);
-    return () => clearInterval(intervalId);
-  }, [fetchTripData, isSoloTrip]);
+    if (tripId === "new") {
+      setView("create");
+      return;
+    }
+
+    if (currentUser && tripId) {
+      fetchTripData(true);
+      statePollTimer.current = setInterval(pollData, 5000); // Set to 5 seconds
+    }
+
+    return () => {
+      if (statePollTimer.current) clearInterval(statePollTimer.current);
+    };
+  }, [currentUser, tripId, fetchTripData, pollData]);
 
   const handleTripCreated = async (formData) => {
     setError(null);
@@ -195,23 +287,10 @@ export default function PlannerPage() {
 
   const handleGetSuggestions = async (preferenceText) => {
     setError(null);
-    if (tripId === "new" || !tripId) {
-      setError("Please create a trip before getting AI suggestions.");
+    if (!isOwner) {
+      setError("Only the trip owner can get AI suggestions.");
       return;
     }
-    if (!preferenceText || preferenceText.trim().length === 0) {
-      setError(
-        "Please add a short description of your preferences for the AI to help you."
-      );
-      return;
-    }
-    if (!tripData?.destinations || tripData.destinations.length === 0) {
-      setError(
-        "Please add at least one destination to your trip before getting AI suggestions."
-      );
-      return;
-    }
-
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
@@ -232,28 +311,7 @@ export default function PlannerPage() {
       }
       const returnedSuggestions = await response.json();
       setSuggestions(returnedSuggestions.data);
-
-      if (isSoloTrip) {
-        const autoShortlistPromises = returnedSuggestions.data.map(
-          (attraction) =>
-            fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ attraction_id: attraction.id }),
-              }
-            )
-        );
-        await Promise.all(autoShortlistPromises);
-        setPlanningPhase("shortlisting");
-        fetchTripData();
-      } else {
-        setPlanningPhase("shortlisting");
-      }
+      await updatePlanningPhase("shortlisting");
     } catch (error) {
       setError(
         `Could not get suggestions: ${error.message}. Please try again.`
@@ -265,10 +323,6 @@ export default function PlannerPage() {
 
   const handleAddToShortlist = async (attraction) => {
     setError(null);
-    if (shortlistedItems.some((item) => item.id === attraction.id)) {
-      setError("This item is already on your shortlist.");
-      return;
-    }
     const token = localStorage.getItem("token");
     try {
       const response = await fetch(
@@ -286,9 +340,7 @@ export default function PlannerPage() {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to add to shortlist.");
       }
-      const newItem = await response.json();
-      setShortlistedItems((prevItems) => [...prevItems, newItem.data]);
-      setError(null);
+      await fetchTripData();
     } catch (error) {
       setError(`Could not add item to shortlist: ${error.message}.`);
     }
@@ -298,25 +350,14 @@ export default function PlannerPage() {
     setError(null);
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist/${itemToRemove.shortlistItemId}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to remove from shortlist.");
-      }
-      setShortlistedItems((prevItems) =>
-        prevItems.filter(
-          (item) => item.shortlistItemId !== itemToRemove.shortlistItemId
-        )
-      );
-      setError(null);
+      await fetchTripData();
     } catch (error) {
       setError(`Could not remove item from shortlist: ${error.message}.`);
     }
@@ -326,41 +367,35 @@ export default function PlannerPage() {
     setError(null);
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/shortlist/${shortlistItemId}/vote`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update vote.");
-      }
-      const result = await response.json();
-      setShortlistedItems((currentItems) =>
-        currentItems.map((item) => {
-          if (item.shortlistItemId === shortlistItemId) {
-            return {
-              ...item,
-              voteCount: result.voteCount,
-              userHasVoted: result.userHasVoted,
-            };
-          }
-          return item;
-        })
-      );
+      await fetchTripData();
     } catch (error) {
       setError(`Could not process your vote: ${error.message}.`);
     }
   };
 
+  const handleStartVote = () => {
+    if (!isOwner) {
+      setError("Only the trip owner can start a vote.");
+      return;
+    }
+    if (shortlistedItems.length > 0) {
+      updatePlanningPhase("voting");
+    } else {
+      setError("Please shortlist at least one attraction to start a vote.");
+    }
+  };
+
   const handleGenerateItinerary = async () => {
     setError(null);
-    if (shortlistedItems.length < 1) {
-      setError(
-        "Please shortlist at least one attraction to generate an itinerary."
-      );
+    if (!isOwner) {
+      setError("Only the trip owner can generate the itinerary.");
       return;
     }
     const token = localStorage.getItem("token");
@@ -377,13 +412,9 @@ export default function PlannerPage() {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to generate itinerary.");
       }
-      const result = await response.json();
-      setItinerary(result.data);
-      setPlanningPhase("itinerary");
+      await updatePlanningPhase("itinerary");
     } catch (error) {
-      setError(
-        `Could not generate itinerary: ${error.message}. Please ensure items are shortlisted.`
-      );
+      setError(`Could not generate itinerary: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
@@ -391,6 +422,10 @@ export default function PlannerPage() {
 
   const handleModifyItinerary = async (command) => {
     setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can modify the itinerary.");
+      return;
+    }
     if (!itinerary) {
       setError("An itinerary must be generated before it can be modified.");
       return;
@@ -398,7 +433,7 @@ export default function PlannerPage() {
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/itinerary/modify`,
         {
           method: "POST",
@@ -412,16 +447,9 @@ export default function PlannerPage() {
           }),
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to modify itinerary.");
-      }
-      const result = await response.json();
-      setItinerary(result.data);
+      await fetchTripData();
     } catch (error) {
-      setError(
-        `Could not modify itinerary: ${error.message}. Please try a different command.`
-      );
+      setError(`Could not modify itinerary: ${error.message}.`);
     } finally {
       setIsLoading(false);
     }
@@ -429,14 +457,14 @@ export default function PlannerPage() {
 
   const handleConfirmAccommodation = async () => {
     setError(null);
-    if (!selectedAccommodation || !tripData?.destinations?.[0]?.id) {
-      setError("Please select an accommodation before confirming.");
+    if (!isOwner) {
+      setError("Only the trip owner can confirm accommodations.");
       return;
     }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/accommodations`,
         {
           method: "POST",
@@ -452,13 +480,7 @@ export default function PlannerPage() {
           }),
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to save your hotel selection."
-        );
-      }
-      setPlanningPhase("flights");
+      await updatePlanningPhase("flights");
     } catch (error) {
       setError(`Could not save your hotel selection: ${error.message}.`);
     } finally {
@@ -468,14 +490,14 @@ export default function PlannerPage() {
 
   const handleSaveFlight = async () => {
     setError(null);
-    if (!selectedFlight || !tripData?.destinations?.[0]?.id) {
-      setError("Please select a flight before finalizing.");
+    if (!isOwner) {
+      setError("Only the trip owner can save the flight selection.");
       return;
     }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/flights`,
         {
           method: "POST",
@@ -491,13 +513,6 @@ export default function PlannerPage() {
           }),
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to save your flight selection."
-        );
-      }
-      setPlanningPhase("flights");
       setView("booking");
     } catch (error) {
       setError(`Could not save your flight selection: ${error.message}.`);
@@ -507,8 +522,8 @@ export default function PlannerPage() {
   };
 
   const handleGoToBooking = () => {
-    if (!selectedFlight) {
-      setError("Please select a flight before finalizing.");
+    if (!isOwner) {
+      setError("Only the trip owner can proceed to booking.");
       return;
     }
     handleSaveFlight();
@@ -516,10 +531,14 @@ export default function PlannerPage() {
 
   const handleConfirmBooking = async (numTravelers) => {
     setError(null);
+    if (!isOwner) {
+      setError("Only the trip owner can finalize the booking.");
+      return;
+    }
     const token = localStorage.getItem("token");
     setIsLoading(true);
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/bookings/custom-trip`,
         {
           method: "POST",
@@ -533,12 +552,7 @@ export default function PlannerPage() {
           }),
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Booking failed.");
-      }
-      alert("Booking successful! Your trip is confirmed.");
-      window.location.href = "/user";
+      await updatePlanningPhase("booked");
     } catch (error) {
       setError(`There was an error confirming your booking: ${error.message}.`);
     } finally {
@@ -550,7 +564,7 @@ export default function PlannerPage() {
     setError(null);
     const token = localStorage.getItem("token");
     try {
-      const response = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trips/${tripId}/chat`,
         {
           method: "POST",
@@ -561,23 +575,18 @@ export default function PlannerPage() {
           body: JSON.stringify({ content: messageContent }),
         }
       );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Message failed to send.");
-      }
-      fetchTripData();
+      await fetchTripData();
     } catch (error) {
       setError(`Failed to send message: ${error.message}.`);
     }
   };
 
-  const handleStartVote = () => {
-    if (shortlistedItems.length > 0) setPlanningPhase("voting");
-    else setError("Please shortlist at least one attraction to start a vote.");
+  const handleSelectAccommodations = () => {
+    if (isOwner) updatePlanningPhase("accommodations");
   };
-
-  const handleSelectAccommodations = () => setPlanningPhase("accommodations");
-  const handleSelectFlights = () => setPlanningPhase("flights");
+  const handleSelectFlights = () => {
+    if (isOwner) updatePlanningPhase("flights");
+  };
 
   const renderMainContent = () => {
     switch (planningPhase) {
@@ -601,6 +610,7 @@ export default function PlannerPage() {
             itinerary={itinerary}
             onModifyItinerary={handleModifyItinerary}
             isLoading={isLoading}
+            isOwner={isOwner}
           />
         ) : (
           <div>Generating itinerary...</div>
@@ -613,6 +623,7 @@ export default function PlannerPage() {
             selectedAccommodation={selectedAccommodation}
             onConfirm={handleConfirmAccommodation}
             tripData={tripData}
+            isOwner={isOwner}
           />
         );
       case "flights":
@@ -621,6 +632,7 @@ export default function PlannerPage() {
             flights={mockData.flights}
             onSelectFlight={setSelectedFlight}
             selectedFlight={selectedFlight}
+            isOwner={isOwner}
           />
         );
       default:
@@ -630,6 +642,10 @@ export default function PlannerPage() {
 
   if (view === "loading") {
     return <div>Loading your trip...</div>;
+  }
+
+  if (planningPhase === "booked") {
+    return <TripBookedView tripName={tripData?.name} />;
   }
 
   if (view === "create") {
@@ -671,8 +687,9 @@ export default function PlannerPage() {
               onSelectAccommodations={handleSelectAccommodations}
               onSelectFlights={handleSelectFlights}
               onGoToBooking={handleGoToBooking}
-              onFinalize={handleSaveFlight}
               isSoloTrip={isSoloTrip}
+              isOwner={isOwner}
+              currentUser={currentUser}
             />
           </aside>
           <section className={styles.mainAreaContainer}>

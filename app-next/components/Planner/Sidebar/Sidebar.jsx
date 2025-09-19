@@ -24,6 +24,8 @@ export default function Sidebar({
   onFinalize,
   onGoToBooking,
   isSoloTrip,
+  isOwner,
+  currentUser,
 }) {
   const renderModule = () => {
     switch (phase) {
@@ -40,7 +42,8 @@ export default function Sidebar({
             items={shortlistedItems}
             onStartVote={onStartVote}
             isSoloTrip={isSoloTrip}
-            onGenerateItinerary={onGenerateItinerary} // **MODIFIED**: Pass handler down
+            onGenerateItinerary={onGenerateItinerary}
+            isOwner={isOwner}
           />
         );
       case "voting":
@@ -50,24 +53,30 @@ export default function Sidebar({
               items={shortlistedItems}
               onStartVote={onStartVote}
               isSoloTrip={isSoloTrip}
-              onGenerateItinerary={onGenerateItinerary} // **MODIFIED**: Pass handler down
+              onGenerateItinerary={onGenerateItinerary}
+              isOwner={isOwner}
             />
             <VotingPoll
               items={shortlistedItems}
               onGenerateItinerary={onGenerateItinerary}
               onVote={onVote}
+              isOwner={isOwner}
             />
           </>
         );
       case "itinerary":
         return (
-          <ItineraryActions onSelectAccommodations={onSelectAccommodations} />
+          <ItineraryActions
+            onSelectAccommodations={onSelectAccommodations}
+            isOwner={isOwner}
+          />
         );
       case "accommodations":
         return (
           <AccommodationSelector
             selected={selectedAccommodation}
             onSelectFlights={onSelectFlights}
+            isOwner={isOwner}
           />
         );
       case "flights":
@@ -75,6 +84,7 @@ export default function Sidebar({
           <FlightSelector
             selected={selectedFlight}
             onGoToBooking={onGoToBooking}
+            isOwner={isOwner}
           />
         );
       default:
@@ -90,6 +100,7 @@ export default function Sidebar({
         onSendMessage={onSendMessage}
         isLoading={isLoading}
         isDeactivated={isSoloTrip}
+        currentUser={currentUser}
       />
     </aside>
   );

@@ -1,6 +1,9 @@
 -- =================================================================
 --  Better travel Database Schema
 -- =================================================================
+
+DROP TABLE IF EXISTS trip_states CASCADE;
+
 DROP TABLE IF EXISTS trip_votes CASCADE;
 
 DROP TABLE IF EXISTS trip_shortlist_items CASCADE;
@@ -419,4 +422,13 @@ CREATE TABLE trip_chat_messages (
     created_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT NOW()
+);
+-- Stores the trip state for travel planniner
+CREATE TABLE trip_states (
+    trip_id UUID PRIMARY KEY,
+    planning_phase VARCHAR(255) NOT NULL DEFAULT 'preferences',
+    updated_at TIMESTAMP
+    WITH
+        TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_trip FOREIGN KEY (trip_id) REFERENCES travel_plans (id) ON DELETE CASCADE
 );
