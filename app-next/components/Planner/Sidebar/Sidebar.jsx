@@ -22,6 +22,10 @@ export default function Sidebar({
   onSelectAccommodations,
   onSelectFlights,
   onFinalize,
+  onGoToBooking,
+  isSoloTrip,
+  isOwner,
+  currentUser,
 }) {
   const renderModule = () => {
     switch (phase) {
@@ -34,33 +38,54 @@ export default function Sidebar({
         );
       case "shortlisting":
         return (
-          <TripShortlist items={shortlistedItems} onStartVote={onStartVote} />
+          <TripShortlist
+            items={shortlistedItems}
+            onStartVote={onStartVote}
+            isSoloTrip={isSoloTrip}
+            onGenerateItinerary={onGenerateItinerary}
+            isOwner={isOwner}
+          />
         );
       case "voting":
         return (
           <>
-            <TripShortlist items={shortlistedItems} onStartVote={onStartVote} />
+            <TripShortlist
+              items={shortlistedItems}
+              onStartVote={onStartVote}
+              isSoloTrip={isSoloTrip}
+              onGenerateItinerary={onGenerateItinerary}
+              isOwner={isOwner}
+            />
             <VotingPoll
               items={shortlistedItems}
               onGenerateItinerary={onGenerateItinerary}
               onVote={onVote}
+              isOwner={isOwner}
             />
           </>
         );
       case "itinerary":
         return (
-          <ItineraryActions onSelectAccommodations={onSelectAccommodations} />
+          <ItineraryActions
+            onSelectAccommodations={onSelectAccommodations}
+            isOwner={isOwner}
+          />
         );
       case "accommodations":
         return (
           <AccommodationSelector
             selected={selectedAccommodation}
             onSelectFlights={onSelectFlights}
+            isOwner={isOwner}
           />
         );
       case "flights":
         return (
-          <FlightSelector selected={selectedFlight} onFinalize={onFinalize} />
+          <FlightSelector
+            selected={selectedFlight}
+            onGoToBooking={onGoToBooking}
+            isOwner={isOwner}
+          />
         );
       default:
         return null;
@@ -74,6 +99,8 @@ export default function Sidebar({
         messages={messages}
         onSendMessage={onSendMessage}
         isLoading={isLoading}
+        isDeactivated={isSoloTrip}
+        currentUser={currentUser}
       />
     </aside>
   );

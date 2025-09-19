@@ -1698,39 +1698,238 @@
 			"name": "Trip Planner",
 			"item": [
 				{
-					"name": "Get Trip Options",
+					"name": "Get AI Suggestions",
 					"request": {
-						"method": "GET",
+						"method": "POST",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"preferences\": \"I like art, history, and good food.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "{{baseUrl}}/api/trip-options?city=Paris&startDate=2026-06-01T00:00:00Z&endDate=2026-06-15T23:59:59Z&numPeople=2",
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/ai-suggestions",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"trip-options"
-							],
-							"query": [
-								{
-									"key": "city",
-									"value": "Paris"
-								},
-								{
-									"key": "startDate",
-									"value": "2026-06-01T00:00:00Z"
-								},
-								{
-									"key": "endDate",
-									"value": "2026-06-15T23:59:59Z"
-								},
-								{
-									"key": "numPeople",
-									"value": "2"
-								}
+								"trips",
+								"{{tripId}}",
+								"ai-suggestions"
 							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Shortlist",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/shortlist",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"shortlist"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add to Shortlist",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.length > 0) {",
+									"        pm.collectionVariables.set(\"shortlistItemId\", response.data[0].shortlistItemId);",
+									"        console.log(`Shortlist item ID ${response.data[0].shortlistItemId} saved successfully!`);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"attraction_id\": \"{{attractionId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
-						"description": "Fetches available flights and accommodations for planning a custom trip."
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/shortlist",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"shortlist"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vote for Shortlist Item",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/shortlist/{{shortlistItemId}}/vote",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"shortlist",
+								"{{shortlistItemId}}",
+								"vote"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Itinerary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/itinerary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"itinerary"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Itinerary",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/itinerary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"itinerary"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Modify Itinerary",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"command\": \"Add a break for lunch on day 2.\",\n    \"currentItinerary\": {\n        \"itinerary\": [\n            {\n                \"day\": 1,\n                \"title\": \"Arrival and Historic Center\",\n                \"activities\": [\n                    {\n                        \"time\": \"10:00 AM\",\n                        \"description\": \"Visit the Louvre Museum.\"\n                    }\n                ]\n            },\n            {\n                \"day\": 2,\n                \"title\": \"Landmarks\",\n                \"activities\": [\n                    {\n                        \"time\": \"11:00 AM\",\n                        \"description\": \"Ascend the Eiffel Tower.\"\n                    }\n                ]\n            }\n        ]\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/itinerary/modify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"itinerary",
+								"modify"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Chat Messages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/chat",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"chat"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Post Chat Message",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"content\": \"This is a great idea!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/trips/{{tripId}}/chat",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"trips",
+								"{{tripId}}",
+								"chat"
+							]
+						}
 					},
 					"response": []
 				}
@@ -3246,6 +3445,10 @@
 		},
 		{
 			"key": "invitationToken",
+			"value": ""
+		},
+		{
+			"key": "shortlistItemId",
 			"value": ""
 		}
 	]

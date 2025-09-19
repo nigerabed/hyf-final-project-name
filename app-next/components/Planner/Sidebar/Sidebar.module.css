@@ -126,3 +126,14 @@
 .voteButton.voted:hover {
     background-color: #1d6bbf;
 }
+
+/* Add to Sidebar.module.css or a similar file */
+.deactivatedChat .messageList {
+    text-align: center;
+    color: #888;
+}
+
+.deactivatedChat input {
+    background-color: #f0f0f0;
+    cursor: not-allowed;
+}

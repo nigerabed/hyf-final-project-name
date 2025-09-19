@@ -12,7 +12,7 @@
   width: 100%;
   margin: 0 auto;
   padding: var(--gutter);
-  padding-top: 0;
+  padding-top: 7rem;
   box-sizing: border-box;
   background: var(--bg-page);
   flex-grow: 1;

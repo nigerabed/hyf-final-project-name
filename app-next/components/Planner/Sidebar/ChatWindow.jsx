@@ -1,45 +1,79 @@
-"use client";
+// FILE: components/planner/Sidebar/ChatWindow.jsx
 
-import { useState } from "react";
-import styles from "./Sidebar.module.css";
+import { useState, useRef, useEffect } from "react";
+import sidebarStyles from "./Sidebar.module.css";
+import chatStyles from "./ChatWindow.module.css";
 import Button from "../Button/Button";
 
 export default function ChatWindow({
-  messages = [],
+  messages,
   onSendMessage,
   isLoading,
+  isDeactivated,
 }) {
-  const [newMessage, setNewMessage] = useState("");
+  const [message, setMessage] = useState("");
+  const messageListRef = useRef(null);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-    onSendMessage(newMessage);
-    setNewMessage("");
+  useEffect(() => {
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = () => {
+    if (message.trim()) {
+      onSendMessage(message.trim());
+      setMessage("");
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
-    <div className={styles.sidebarModule}>
-      <h3>Trip Chat</h3>
-      <div className={styles.chatMessages}>
-        {messages.map((msg) => (
-          <div key={msg.id}>
-            <b>{msg.first_name}:</b> {msg.content}
+    <div className={sidebarStyles.sidebarModule}>
+      <h3>Group Chat</h3>
+      <div className={chatStyles.messageList} ref={messageListRef}>
+        {isDeactivated ? (
+          <div className={chatStyles.deactivatedMessage}>
+            Chat is disabled for solo trips.
           </div>
-        ))}
+        ) : messages && messages.length > 0 ? (
+          messages.map((msg) => (
+            <div key={msg.id} className={chatStyles.messageItem}>
+              <p>
+                <strong>{msg.user?.first_name || "Unknown"}:</strong>{" "}
+                {msg.content}
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className={chatStyles.emptyState}>No messages yet.</div>
+        )}
       </div>
-      <form onSubmit={handleSubmit}>
+      <div className={chatStyles.chatInputArea}>
         <textarea
-          className={styles.textarea}
-          placeholder="Type a message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          disabled={isLoading}
+          className={chatStyles.chatTextarea}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            isDeactivated ? "Unavailable for solo trips" : "Type a message..."
+          }
+          disabled={isDeactivated || isLoading}
+          rows="2"
         />
-        <Button type="submit" variant="secondary" disabled={isLoading}>
-          {isLoading ? "Sending..." : "Send"}
+        <Button
+          onClick={handleSend}
+          disabled={isDeactivated || isLoading || !message.trim()}
+        >
+          Send Message
         </Button>
-      </form>
+      </div>
     </div>
   );
 }
