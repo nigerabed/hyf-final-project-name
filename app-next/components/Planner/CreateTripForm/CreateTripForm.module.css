@@ -7,7 +7,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 2rem 1rem;
+  padding: 8rem 1rem;
   font-family: "Archivo", sans-serif;
 }
 
@@ -80,12 +80,15 @@
   .dateInputs {
     flex-direction: column;
   }
+
   .createTripContainer {
     padding: 1.25rem;
   }
+
   .createTripContainer h1 {
     text-align: center;
   }
+
   .subtitle {
     text-align: center;
   }

@@ -38,11 +38,14 @@ export default function AttractionDetailsPage() {
     if (!attraction) return;
     // Prefer the same photo used by the card components when available
     const photoUrl =
-      attraction.photos && attraction.photos.length > 0 && attraction.photos[0].image_url
+      attraction.photos &&
+      attraction.photos.length > 0 &&
+      attraction.photos[0].image_url
         ? attraction.photos[0].image_url
         : null;
 
-    const raw = photoUrl || attraction.cover_image_url || attraction.image_url || "";
+    const raw =
+      photoUrl || attraction.cover_image_url || attraction.image_url || "";
     const placeholder = attraction?.id
       ? `https://picsum.photos/seed/attraction-${attraction.id}/1200/800`
       : "/images/attractions/default.jpg";
@@ -51,7 +54,9 @@ export default function AttractionDetailsPage() {
       if (!s || typeof s !== "string" || s.trim() === "") return null;
       const t = s.trim();
       if (t.includes("placehold.co")) {
-        const seed = attraction?.id ? `attraction-${attraction.id}` : encodeURIComponent(t);
+        const seed = attraction?.id
+          ? `attraction-${attraction.id}`
+          : encodeURIComponent(t);
         return `https://picsum.photos/seed/${seed}/1200/800`;
       }
       if (t.startsWith("/images/")) return null; // backend-relative path — HEAD-check below
@@ -68,7 +73,12 @@ export default function AttractionDetailsPage() {
 
     // Backend-relative or empty: use placeholder then attempt HEAD request for backend assets
     setImageSrc(placeholder);
-    if (raw && raw.startsWith("/images/") && !raw.startsWith("http://") && !raw.startsWith("https://")) {
+    if (
+      raw &&
+      raw.startsWith("/images/") &&
+      !raw.startsWith("http://") &&
+      !raw.startsWith("https://")
+    ) {
       let cancelled = false;
       (async () => {
         try {
@@ -91,15 +101,29 @@ export default function AttractionDetailsPage() {
   const rawTitle = attraction.title ?? attraction.name ?? "Untitled";
   const title = rawTitle.replace(/:\s*[0-9a-f]{6,32}$/i, "").trim();
 
-  const author = attraction.author_name ?? attraction.author ?? attraction.user ?? attraction.created_by ?? null;
-  const createdAt = attraction.created_at ? new Date(attraction.created_at) : null;
-  const formattedDate = createdAt && !Number.isNaN(createdAt.getTime())
-    ? createdAt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  const author =
+    attraction.author_name ??
+    attraction.author ??
+    attraction.user ??
+    attraction.created_by ??
+    null;
+  const createdAt = attraction.created_at
+    ? new Date(attraction.created_at)
     : null;
+  const formattedDate =
+    createdAt && !Number.isNaN(createdAt.getTime())
+      ? createdAt.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : null;
 
   const rawCategory = attraction.category ?? attraction.type ?? null;
   const category = rawCategory
-    ? String(rawCategory).toLowerCase().replace(/(^|\s)\S/g, (t) => t.toUpperCase())
+    ? String(rawCategory)
+        .toLowerCase()
+        .replace(/(^|\s)\S/g, (t) => t.toUpperCase())
     : null;
 
   return (
@@ -113,7 +137,7 @@ export default function AttractionDetailsPage() {
         <div className={styles.travelCard}>
           <div className={styles.imageWrapper}>
             <Image
-              src={imageSrc || attraction.cover_image_url || "https://images.unsplash.com/photo-1533106418989-88406c7cc8ca?w=500"}
+              src={imageSrc || attraction.cover_image_url}
               alt={attraction.destination || title || "Attraction image"}
               fill
               style={{ objectFit: "cover" }}
@@ -124,14 +148,24 @@ export default function AttractionDetailsPage() {
           <div className={styles.cardContent}>
             <h4 className={styles.cardTitle}>{title}</h4>
             <div className={styles.postMeta}>
-              <PostMeta authorName={author} date={formattedDate} category={category} itemId={attraction.id} itemType="attraction" />
+              <PostMeta
+                authorName={author}
+                date={formattedDate}
+                category={category}
+                itemId={attraction.id}
+                itemType="attraction"
+              />
             </div>
             <div className={styles.meta}>
               <span>{attraction.location}</span>
             </div>
             <div className={styles.description}>{attraction.content}</div>
           </div>
-          <Comment postId={attraction.id} commentsData={attraction.comments} resource="attractions" />
+          <Comment
+            postId={attraction.id}
+            commentsData={attraction.comments}
+            resource="attractions"
+          />
         </div>
       </div>
     </>
