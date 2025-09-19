@@ -3,17 +3,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./planner.module.css";
-import CreateTripForm from "../../../components/planner/CreateTripForm/CreateTripForm";
-import ProgressTracker from "../../../components/planner/ProgressTracker/ProgressTracker";
-import Sidebar from "../../../components/planner/Sidebar/Sidebar";
-import MainArea from "../../../components/planner/MainArea/MainArea";
-import BookingView from "../../../components/planner/BookingView/BookingView";
-import mockData from "../../../components/planner/mockData";
-import EmptyState from "../../../components/planner/MainArea/EmptyState";
-import SuggestionGrid from "../../../components/planner/MainArea/SuggestionGrid";
-import ItineraryDisplay from "../../../components/planner/MainArea/ItineraryDisplay";
-import AccommodationDisplay from "../../../components/planner/MainArea/AccommodationDisplay";
-import FlightDisplay from "../../../components/planner/MainArea/FlightDisplay";
+import CreateTripForm from "../../../components/Planner/CreateTripForm/CreateTripForm";
+import ProgressTracker from "../../../components/Planner/ProgressTracker/ProgressTracker";
+import Sidebar from "../../../components/Planner/Sidebar/Sidebar";
+import MainArea from "../../../components/Planner/MainArea/MainArea";
+import BookingView from "../../../components/Planner/BookingView/BookingView";
+import mockData from "../../../components/Planner/mockData";
+import EmptyState from "../../../components/Planner/MainArea/EmptyState";
+import SuggestionGrid from "../../../components/Planner/MainArea/SuggestionGrid";
+import ItineraryDisplay from "../../../components/Planner/MainArea/ItineraryDisplay";
+import AccommodationDisplay from "../../../components/Planner/MainArea/AccommodationDisplay";
+import FlightDisplay from "../../../components/Planner/MainArea/FlightDisplay";
 
 const ErrorBanner = ({ message, onDismiss }) => {
   if (!message) return null;
