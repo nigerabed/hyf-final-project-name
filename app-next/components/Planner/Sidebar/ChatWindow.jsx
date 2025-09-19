@@ -1,5 +1,8 @@
-import { useState } from "react";
-import styles from "./Sidebar.module.css";
+// FILE: components/planner/Sidebar/ChatWindow.jsx
+
+import { useState, useRef, useEffect } from "react";
+import sidebarStyles from "./Sidebar.module.css";
+import chatStyles from "./ChatWindow.module.css";
 import Button from "../Button/Button";
 
 export default function ChatWindow({
@@ -9,6 +12,13 @@ export default function ChatWindow({
   isDeactivated,
 }) {
   const [message, setMessage] = useState("");
+  const messageListRef = useRef(null);
+
+  useEffect(() => {
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const handleSend = () => {
     if (message.trim()) {
@@ -25,30 +35,29 @@ export default function ChatWindow({
   };
 
   return (
-    <div
-      className={`${styles.sidebarModule} ${
-        isDeactivated ? styles.deactivatedChat : ""
-      }`}
-    >
-      <h3>{isDeactivated ? "Chat" : "Group Chat"}</h3>
-      <div className={styles.messageList}>
+    <div className={sidebarStyles.sidebarModule}>
+      <h3>Group Chat</h3>
+      <div className={chatStyles.messageList} ref={messageListRef}>
         {isDeactivated ? (
-          <p className={styles.deactivatedMessage}>
+          <div className={chatStyles.deactivatedMessage}>
             Chat is disabled for solo trips.
-          </p>
+          </div>
         ) : messages && messages.length > 0 ? (
           messages.map((msg) => (
-            <div key={msg.id} className={styles.message}>
-              <strong>{msg.user?.first_name || "Unknown User"}:</strong>{" "}
-              {msg.content}
+            <div key={msg.id} className={chatStyles.messageItem}>
+              <p>
+                <strong>{msg.user?.first_name || "Unknown"}:</strong>{" "}
+                {msg.content}
+              </p>
             </div>
           ))
         ) : (
-          <p>No messages yet.</p>
+          <div className={chatStyles.emptyState}>No messages yet.</div>
         )}
       </div>
-      <div className={styles.chatInputArea}>
+      <div className={chatStyles.chatInputArea}>
         <textarea
+          className={chatStyles.chatTextarea}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -56,10 +65,13 @@ export default function ChatWindow({
             isDeactivated ? "Unavailable for solo trips" : "Type a message..."
           }
           disabled={isDeactivated || isLoading}
-          rows="1"
+          rows="2"
         />
-        <Button onClick={handleSend} disabled={isDeactivated || isLoading}>
-          Send
+        <Button
+          onClick={handleSend}
+          disabled={isDeactivated || isLoading || !message.trim()}
+        >
+          Send Message
         </Button>
       </div>
     </div>
