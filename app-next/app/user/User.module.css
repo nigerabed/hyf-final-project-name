@@ -334,8 +334,21 @@
   justify-content: center;
   background: linear-gradient(135deg, #171a1f, #2d3748);
   color: white;
+
   font-size: 2rem;
+
   font-weight: 700;
+  cursor: pointer;
+  font-family: "Archivo", sans-serif;
+  display: inline-block;
+  text-decoration: none;
+  border: none;
+  transition: transform 180ms;
+  box-shadow: 4px 4px 4px rgb(197, 195, 195);
+}
+
+.addButton:hover {
+  transform: scale(1.05);
 }
 
 .info {
