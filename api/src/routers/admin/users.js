@@ -3,6 +3,8 @@ import knex from "../../db.mjs";
 import { authenticateToken, requireRole } from "../../middleware/auth.js";
 import { validateRequest } from "../../middleware/validation.js";
 import { adminUserUpdateSchema } from "../../validation/schemas.js";
+import { adminCreateUserSchema } from "../../validation/schemas.js";
+import bcrypt from "bcryptjs";
 
 const adminUsersRouter = express.Router();
 adminUsersRouter.use(authenticateToken, requireRole(["admin"]));
@@ -93,6 +95,55 @@ adminUsersRouter.put(
     } catch (error) {
       console.error("Admin error updating user:", error);
       res.status(500).json({ error: "Failed to update user." });
+    }
+  }
+);
+
+// Admin: create a new user
+adminUsersRouter.post(
+  "/",
+  validateRequest(adminCreateUserSchema),
+  async (req, res) => {
+    try {
+      const { first_name, last_name, email, username, mobile, password, role } =
+        req.validatedData;
+
+      // Check duplicates
+      const existing = await knex("users")
+        .where(function () {
+          this.where({ email }).orWhere({ username }).orWhere({ mobile });
+        })
+        .first();
+      if (existing) {
+        return res.status(400).json({ error: "User already exists." });
+      }
+
+      const insert = {
+        first_name,
+        last_name,
+        email,
+        username,
+        mobile,
+        role: role || "user",
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      if (password) {
+        const saltRounds = 12;
+        insert.password = await bcrypt.hash(password, saltRounds);
+      } else {
+        // If admin doesn't provide password, set a random placeholder and require password reset by user flow
+        insert.password = ""; // consider sending reset link in production
+      }
+
+      const [created] = await knex("users").insert(insert).returning(["id", "first_name", "last_name", "email", "username", "mobile", "role", "is_active", "created_at"]);
+
+      res.status(201).json({ message: "User created", data: created });
+    } catch (error) {
+      console.error("Admin create user error:", error);
+      res.status(500).json({ error: "Failed to create user." });
     }
   }
 );

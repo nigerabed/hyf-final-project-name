@@ -1822,16 +1822,48 @@ export default function AdminPage() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setCreateError("");
+                setValidationErrors({});
                 setCreatingUser(true);
                 try {
                   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
                   const headers = { "Content-Type": "application/json" };
                   if (token) headers.Authorization = `Bearer ${token}`;
 
-                  // Note: This would need a dedicated admin user creation endpoint
-                  // For now, we'll show the form but note that user creation typically requires registration
-                  setCreateError("User creation requires registration endpoint. This is a demo form.");
-                  setShowCreateUserModal(false);
+                  // Call admin create-user endpoint
+                  const body = { ...newUser };
+                  const res = await fetch(`${API_URL}/api/admin/users`, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(body),
+                  });
+
+                  const text = await res.text();
+                  let parsed;
+                  try {
+                    parsed = JSON.parse(text);
+                  } catch {
+                    parsed = { message: text };
+                  }
+
+                  if (res.ok) {
+                    const created = parsed.data || parsed;
+                    setUsers((prev) => [created, ...(Array.isArray(prev) ? prev : [])]);
+                    setShowCreateUserModal(false);
+                    setCreateError("");
+                    showSuccess("User created successfully!");
+                  } else {
+                    // Parse and show field-level validation errors if present
+                    try {
+                      const parsedErrors = parseValidationErrors(parsed);
+                      if (parsedErrors && Object.keys(parsedErrors).length > 0) {
+                        setValidationErrors(parsedErrors);
+                      } else {
+                        setCreateError(parsed.error || parsed.message || "Failed to create user");
+                      }
+                    } catch (ex) {
+                      setCreateError(parsed.error || parsed.message || "Failed to create user");
+                    }
+                  }
                 } catch (err) {
                   setCreateError(err.message || "Failed to create user");
                 } finally {
@@ -1847,6 +1879,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, first_name: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'first_name')} fieldName="First Name" />
               </div>
               <div className={styles.field}>
                 <label>Last Name</label>
@@ -1856,6 +1889,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, last_name: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'last_name')} fieldName="Last Name" />
               </div>
               <div className={styles.field}>
                 <label>Email</label>
@@ -1865,6 +1899,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, email: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'email')} fieldName="Email" />
               </div>
               <div className={styles.field}>
                 <label>Username</label>
@@ -1874,6 +1909,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewUser((n) => ({ ...n, username: e.target.value }))}
                   required
                 />
+                <FieldError error={getFieldError(validationErrors, 'username')} fieldName="Username" />
               </div>
               <div className={styles.field}>
                 <label>Mobile</label>
@@ -1882,6 +1918,7 @@ export default function AdminPage() {
                   value={newUser.mobile}
                   onChange={(e) => setNewUser((n) => ({ ...n, mobile: e.target.value }))}
                 />
+                <FieldError error={getFieldError(validationErrors, 'mobile')} fieldName="Mobile" />
               </div>
               <div className={styles.field}>
                 <label>Role</label>
