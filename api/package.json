@@ -9,18 +9,10 @@
     "npm": "^10.5.0"
   },
   "scripts": {
-    "db:start": "docker compose -f ../docker-compose.yml --env-file .env up -d",
-    "db:stop": "docker compose -f ../docker-compose.yml --env-file .env down",
-    "db:clean": "docker compose -f ../docker-compose.yml --env-file .env down -v",
-    "db:reset": "node scripts/db-init.js",
-    "db:setup": "npm-run-all db:clean db:start db:reset",
-    "dev": "npm-run-all --parallel db:start start",
-    "start": "nodemon src/index.mjs",
+    "dev": "nodemon src/index.mjs",
+    "start": "node src/index.mjs",
     "format": "npx prettier . --write",
-    "check": "npx eslint . --fix",
-    "migrate": "knex migrate:latest",
-    "migrate:rollback": "knex migrate:rollback",
-    "migrate:make": "knex migrate:make"
+    "check": "npx eslint . --fix"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -34,7 +26,6 @@
     "knex": "^3.1.0",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
-    "npm-run-all": "^4.1.5",
     "pg": "^8.11.5",
     "uploadthing": "^7.7.4",
     "zod": "^3.22.4"
