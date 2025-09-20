@@ -13,11 +13,29 @@ export default function CreateTripForm({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const [formError, setFormError] = useState(null);
 
   const handleCreate = () => {
     onDismissError(); // Dismiss any previous errors
+    setAuthError(null);
+    setFormError(null);
+    // Require user to be logged in before creating a trip
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("accessToken")
+        : null;
+    if (!token) {
+      setAuthError(
+        "You must be logged in to create a trip. Please log in or create an account to continue."
+      );
+      return;
+    }
     if (!tripName || !destination || !startDate || !endDate) {
-      onTripCreate({ error: "Please fill out all fields." });
+      const msg = "Please fill out all fields.";
+      setFormError(msg);
+      // also notify parent for backward compatibility
+      onTripCreate({ error: msg });
       return;
     }
 
@@ -33,7 +51,9 @@ export default function CreateTripForm({
     const duration_days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 
     if (duration_days < 1) {
-      onTripCreate({ error: "End date must be after the start date." });
+      const msg = "End date must be after the start date.";
+      setFormError(msg);
+      onTripCreate({ error: msg });
       return;
     }
 
@@ -51,6 +71,8 @@ export default function CreateTripForm({
         },
       ],
     };
+    // clear any local errors before creating
+    setFormError(null);
     onTripCreate(formData);
   };
 
@@ -61,6 +83,21 @@ export default function CreateTripForm({
         <p className={styles.subtitle}>
           Fill out the details below to get started with your next adventure.
         </p>
+        {authError ? (
+          <div className={styles.authMessage} role="alert">
+            <p>{authError}</p>
+            <div>
+              <a className={styles.authLink} href="/login">
+                Go to Login
+              </a>
+            </div>
+          </div>
+        ) : null}
+        {formError ? (
+          <div className={styles.formError} role="alert">
+            {formError}
+          </div>
+        ) : null}
         <div className={styles.formGroup}>
           <label htmlFor="trip-name">Trip Name</label>
           <input

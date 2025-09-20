@@ -94,10 +94,11 @@
   width: 100%;
   max-width: 1200px;
   flex-grow: 1;
-  padding: 24px;
+  padding: 24px 0;
   max-width: 900px;
   margin: 0 auto;
   margin-top: 92px;
+  margin-bottom: 24px;
   font-family:
     "Inter",
     -apple-system,
@@ -133,6 +134,7 @@
   display: flex;
   gap: 24px;
   min-height: calc(100vh - 100px);
+  margin: 0 32px;
 }
 
 /* Sidebar */
@@ -992,7 +994,8 @@
 /* Responsive Design */
 @media (max-width: 1024px) {
   .container {
-    padding: 16px;
+    padding: 16px 0;
+    padding-bottom: 16px;
     max-width: 100%;
   }
 
@@ -1028,7 +1031,6 @@
 
 @media (max-width: 768px) {
   .container {
-    padding: 12px;
     margin-top: 80px;
   }
 
@@ -1077,7 +1079,6 @@
 
 @media (max-width: 480px) {
   .container {
-    padding: 8px;
     margin-top: 110px;
   }
 
