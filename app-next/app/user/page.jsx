@@ -13,7 +13,7 @@ import FieldError from "../../components/FieldError/FieldError";
 import Card from "../../components/Card/Card";
 import cardStyles from "../../components/Card/Card.module.css";
 import BlogCard from "../../components/BlogCard/BlogCard";
-import AttractionCard from "../AttractionCard/AttractionCard";
+import AttractionCard from "../../components/AttractionCard/AttractionCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
