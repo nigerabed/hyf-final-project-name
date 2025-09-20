@@ -13,8 +13,7 @@ import FieldError from "../../components/FieldError/FieldError";
 import Card from "../../components/Card/Card";
 import cardStyles from "../../components/Card/Card.module.css";
 import BlogCard from "../../components/BlogCard/BlogCard";
-import AttractionCard from "../../components/AttractionCard/AttractionCard";
-import { UploadButton } from "@uploadthing/react";
+import AttractionCard from "../AttractionCard/AttractionCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -32,10 +31,8 @@ export default function UserPage() {
   const [bookings, setBookings] = useState([]);
   const [cancelling, setCancelling] = useState({});
   const [removedBookings, setRemovedBookings] = useState({});
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
   const [newPost, setNewPost] = useState({
     title: "",
@@ -47,7 +44,55 @@ export default function UserPage() {
   const [createError, setCreateError] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
 
-  // helper to safely parse JSON or return text
+  // Refs and state for the new unified upload handler
+  const fileInputRef = useRef(null);
+  const [uploadTarget, setUploadTarget] = useState(null); // 'profile' or 'post'
+
+  // A single, reusable function for handling authenticated file uploads.
+  const handleAuthenticatedUpload = async (file) => {
+    if (!file) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("You must be logged in to upload files.");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("files", file);
+
+      const response = await fetch(`${API_URL}/api/uploadthing`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed. Server responded with an error.");
+      }
+
+      const result = await response.json();
+
+      if (result && result.length > 0) {
+        const imageUrl = result[0].url;
+        if (uploadTarget === "profile") {
+          // This function updates the user's profile on the main API (b1)
+          await onUploadComplete([{ url: imageUrl }]);
+        } else if (uploadTarget === "post") {
+          setNewPost((n) => ({ ...n, cover_image_url: imageUrl }));
+        }
+      } else {
+        throw new Error("Upload completed but no URL was returned.");
+      }
+    } catch (error) {
+      alert(`Upload failed: ${error.message}`);
+      setCreateError(`Upload failed: ${error.message}`);
+    }
+  };
+
   async function safeParseResponse(res) {
     const text = await res.text();
     try {
@@ -62,12 +107,15 @@ export default function UserPage() {
     async function fetchData() {
       setLoading(true);
       setError("");
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       try {
         try {
-          const resProfile = await fetch(`${API_URL}/api/users/profile`, { headers });
+          const resProfile = await fetch(`${API_URL}/api/users/profile`, {
+            headers,
+          });
           const parsed = await safeParseResponse(resProfile);
           if (resProfile.ok && parsed.body) {
             if (mounted) setUser(parsed.body.data || parsed.body);
@@ -75,8 +123,10 @@ export default function UserPage() {
         } catch {}
 
         try {
-          // fetch user's bookings (booked tours / custom trips)
-          const resBookings = await fetch(`${API_URL}/api/bookings/my-bookings`, { headers });
+          const resBookings = await fetch(
+            `${API_URL}/api/bookings/my-bookings`,
+            { headers }
+          );
           const parsed = await safeParseResponse(resBookings);
           if (resBookings.ok && parsed.body) {
             if (mounted) {
@@ -84,31 +134,23 @@ export default function UserPage() {
               const filtered = Array.isArray(raw)
                 ? raw.filter((b) => {
                     const id = String(b.booking_id || b.id || "");
-                    const status = String(b.booking_status || b.status || "").toLowerCase();
-                    // filter out known-removed ids and any booking that looks cancelled
+                    const status = String(
+                      b.booking_status || b.status || ""
+                    ).toLowerCase();
                     if (removedBookings[id]) return false;
                     if (status.includes("cancel")) return false;
                     return true;
                   })
                 : raw;
-              console.debug(
-                "bookings.fetchData: fetched",
-                raw.map((r) => ({
-                  id: r.booking_id || r.id,
-                  status: r.booking_status || r.status,
-                })),
-                "filtered ->",
-                filtered.map((r) => r.booking_id || r.id),
-                "removedBookings:",
-                removedBookings
-              );
               setBookings(filtered);
             }
           }
         } catch {}
 
         try {
-          const resPosts = await fetch(`${API_URL}/api/blogposts/my-posts`, { headers });
+          const resPosts = await fetch(`${API_URL}/api/blogposts/my-posts`, {
+            headers,
+          });
           const parsed = await safeParseResponse(resPosts);
           if (resPosts.ok && parsed.body) {
             if (mounted) setPosts(parsed.body.data || parsed.body || []);
@@ -116,19 +158,29 @@ export default function UserPage() {
         } catch {}
 
         try {
-          const resTours = await fetch(`${API_URL}/api/tours?limit=100`, { headers });
+          const resTours = await fetch(`${API_URL}/api/tours?limit=100`, {
+            headers,
+          });
           const parsed = await safeParseResponse(resTours);
           if (resTours.ok && parsed.body) {
-            if (mounted) setTours(parsed.body.tours || parsed.body.data || parsed.body || []);
+            if (mounted)
+              setTours(
+                parsed.body.tours || parsed.body.data || parsed.body || []
+              );
           }
         } catch {}
 
         try {
-          const resAttractions = await fetch(`${API_URL}/api/attractions?limit=100`, { headers });
+          const resAttractions = await fetch(
+            `${API_URL}/api/attractions?limit=100`,
+            { headers }
+          );
           const parsed = await safeParseResponse(resAttractions);
           if (resAttractions.ok && parsed.body) {
             if (mounted)
-              setAttractions(parsed.body.attractions || parsed.body.data || parsed.body || []);
+              setAttractions(
+                parsed.body.attractions || parsed.body.data || parsed.body || []
+              );
           }
         } catch {}
 
@@ -147,8 +199,10 @@ export default function UserPage() {
         } catch {}
 
         try {
-          // fetch public blogposts to resolve favorite posts to cards
-          const resAllPosts = await fetch(`${API_URL}/api/blogposts?limit=100`, { headers });
+          const resAllPosts = await fetch(
+            `${API_URL}/api/blogposts?limit=100`,
+            { headers }
+          );
           const parsed = await safeParseResponse(resAllPosts);
           if (resAllPosts.ok && parsed.body) {
             if (mounted) setAllPosts(parsed.body.data || parsed.body || []);
@@ -167,8 +221,6 @@ export default function UserPage() {
     };
   }, []);
 
-  // When switching tabs, fetch fresh data for that tab so the user sees
-  // newly favorited items or updated bookings immediately when they open the tab.
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -179,17 +231,13 @@ export default function UserPage() {
         } else if (currentSection === "bookings") {
           await refreshBookings();
         }
-      } catch (err) {
-        // ignore — non-critical
-      }
+      } catch (err) {}
     })();
     return () => {
       mounted = false;
     };
   }, [currentSection]);
 
-  // recompute favoriteTours when favorites or tours change
-  // Use stable string keys as dependencies (avoid passing arrays directly)
   const favKey = Array.isArray(favorites)
     ? favorites
         .map((f) => String(f.item_id || f.itemId || f.item || ""))
@@ -219,7 +267,6 @@ export default function UserPage() {
     try {
       const favs = Array.isArray(favorites) ? favorites : [];
       const sourceTours = Array.isArray(tours) ? tours : [];
-      // Favorite tours
       const resolvedTours = favs
         .filter((f) => (f.item_type || f.itemType || f.type) === "tour")
         .map((f) => {
@@ -229,7 +276,6 @@ export default function UserPage() {
         .filter(Boolean);
       setFavoriteTours(resolvedTours);
 
-      // Favorite posts
       const sourcePosts = Array.isArray(allPosts) ? allPosts : [];
       const resolvedPosts = favs
         .filter((f) => (f.item_type || f.itemType || f.type) === "post")
@@ -240,7 +286,6 @@ export default function UserPage() {
         .filter(Boolean);
       setFavoritePosts(resolvedPosts);
 
-      // Favorite attractions
       const sourceAttractions = Array.isArray(attractions) ? attractions : [];
       const resolvedAttractions = favs
         .filter((f) => (f.item_type || f.itemType || f.type) === "attraction")
@@ -257,35 +302,33 @@ export default function UserPage() {
     }
   }, [favKey, toursKey, postsKey, attractionsKey]);
 
-  // refresh bookings when bookingsChanged event fires
   useEffect(() => {
     function onBookingsChanged() {
       (async () => {
         try {
-          const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+          const token =
+            typeof window !== "undefined"
+              ? localStorage.getItem("token")
+              : null;
           const headers = {};
           if (token) headers.Authorization = `Bearer ${token}`;
-          const res = await fetch(`${API_URL}/api/bookings/my-bookings`, { headers });
+          const res = await fetch(`${API_URL}/api/bookings/my-bookings`, {
+            headers,
+          });
           if (res.ok) {
             const data = await res.json().catch(() => null);
             const raw = data?.data || data || [];
             const filtered = Array.isArray(raw)
               ? raw.filter((b) => {
                   const id = String(b.booking_id || b.id || "");
-                  const status = String(b.booking_status || b.status || "").toLowerCase();
+                  const status = String(
+                    b.booking_status || b.status || ""
+                  ).toLowerCase();
                   if (removedBookings[id]) return false;
                   if (status.includes("cancel")) return false;
                   return true;
                 })
               : raw;
-            console.debug(
-              "bookings.onBookingsChanged: fetched",
-              raw.map((r) => ({ id: r.booking_id || r.id, status: r.booking_status || r.status })),
-              "filtered ->",
-              filtered.map((r) => r.booking_id || r.id),
-              "removedBookings:",
-              removedBookings
-            );
             setBookings(filtered);
           }
         } catch {}
@@ -305,43 +348,39 @@ export default function UserPage() {
     const id = booking.booking_id || booking.id || null;
     const type = booking.tour_id ? "tour" : booking.trip_id ? "custom" : null;
     if (!type || !id) {
-      console.warn("cancelBooking: missing type or id", { booking });
       return;
     }
 
-    // prevent duplicate cancels for same booking
     if (cancelling[String(id)]) {
-      console.debug("cancelBooking: already cancelling", id);
       return;
     }
 
     try {
-      // optimistically mark as removed so any refresh won't re-add it while
-      // cancellation is in-flight
       setRemovedBookings((s) => ({ ...s, [String(id)]: true }));
       setCancelling((s) => ({ ...s, [String(id)]: true }));
-      console.debug("cancelBooking: sending request", { id, type });
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      const res = await fetch(`${API_URL}/api/bookings/${type}/${encodeURIComponent(id)}/cancel`, {
-        method: "PATCH",
-        headers,
-      });
+      const res = await fetch(
+        `${API_URL}/api/bookings/${type}/${encodeURIComponent(id)}/cancel`,
+        {
+          method: "PATCH",
+          headers,
+        }
+      );
       const data = await res.json().catch(() => null);
-      console.debug("cancelBooking: response", { status: res.status, body: data });
       if (res.ok) {
-        // remove the cancelled booking from local UI so it no longer appears
         setBookings((all) =>
-          Array.isArray(all) ? all.filter((b) => String(b.booking_id || b.id) !== String(id)) : all
+          Array.isArray(all)
+            ? all.filter((b) => String(b.booking_id || b.id) !== String(id))
+            : all
         );
-        // don't trigger a global refresh here — we removed the booking locally to
-        // avoid a race where an immediate refetch returns stale data and re-adds it.
       } else {
-        console.error("Failed to cancel booking:", data || res.statusText);
-        alert((data && (data.error || data.message)) || "Failed to cancel booking");
-        // rollback removed mark so future refreshes include it
+        alert(
+          (data && (data.error || data.message)) || "Failed to cancel booking"
+        );
         setRemovedBookings((s) => {
           const copy = { ...s };
           delete copy[String(id)];
@@ -349,9 +388,7 @@ export default function UserPage() {
         });
       }
     } catch (err) {
-      console.error("cancelBooking: exception", err);
       alert(err.message || "Failed to cancel booking");
-      // rollback removed mark on exception
       setRemovedBookings((s) => {
         const copy = { ...s };
         delete copy[String(id)];
@@ -366,28 +403,33 @@ export default function UserPage() {
     }
   }
 
-  // fetch latest bookings from server and update local state
   async function refreshBookings() {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(`${API_URL}/api/bookings/my-bookings`, { headers });
+      const res = await fetch(`${API_URL}/api/bookings/my-bookings`, {
+        headers,
+      });
       const data = await res.json().catch(() => null);
       if (res.ok && data && data.data) {
         setBookings(data.data);
       } else {
-        console.error("Failed to fetch bookings:", data?.error || res.statusText);
+        console.error(
+          "Failed to fetch bookings:",
+          data?.error || res.statusText
+        );
       }
     } catch (err) {
       console.error("Error fetching bookings:", err);
     }
   }
 
-  // fetch latest favorites from server and update local state + storage
   async function refreshFavorites() {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch(`${API_URL}/api/favorites`, { headers });
@@ -405,12 +447,9 @@ export default function UserPage() {
           localStorage.setItem("favorites", JSON.stringify(favs));
         } catch {}
       }
-    } catch (err) {
-      // ignore - don't block UI
-    }
+    } catch (err) {}
   }
 
-  // Handler passed to Card components so unfavoriting a tour removes it from the UI immediately
   async function handleFavoriteChange({ added, itemId, error }) {
     try {
       if (added === false) {
@@ -418,7 +457,9 @@ export default function UserPage() {
           try {
             const arr = Array.isArray(all) ? all : [];
             return arr.filter(
-              (f) => String(f.item_id || f.itemId || f.item || f.item_id) !== String(itemId)
+              (f) =>
+                String(f.item_id || f.itemId || f.item || f.item_id) !==
+                String(itemId)
             );
           } catch {
             return all;
@@ -426,9 +467,7 @@ export default function UserPage() {
         });
       }
       refreshFavorites();
-    } catch (err) {
-      // ignore
-    }
+    } catch (err) {}
   }
 
   useEffect(() => {
@@ -448,7 +487,6 @@ export default function UserPage() {
     };
   }, []);
 
-  // Profile view component - exactly matching admin panel design
   function ProfileView() {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({
@@ -469,7 +507,6 @@ export default function UserPage() {
     const [pwSubmitting, setPwSubmitting] = useState(false);
     const [pwMessage, setPwMessage] = useState("");
 
-    // Update form when user changes
     useEffect(() => {
       if (user) {
         setForm({
@@ -499,7 +536,8 @@ export default function UserPage() {
         const url = res[0].url;
         setImagePreview(url);
         setForm((f) => ({ ...f, profile_image: url }));
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("token") : null;
         const headers = { "Content-Type": "application/json" };
         if (token) headers.Authorization = `Bearer ${token}`;
         const payload = { profile_image: url };
@@ -512,15 +550,11 @@ export default function UserPage() {
           const data = await resp.json().catch(() => null);
           if (data && (data.data || data)) {
             setUser(data.data || data);
-            // Update localStorage with new user data
             localStorage.setItem("user", JSON.stringify(data.data || data));
-            // Dispatch custom event to notify Header component
             window.dispatchEvent(new CustomEvent("userUpdated"));
           }
         }
-      } catch {
-        // silent
-      }
+      } catch {}
     }
 
     async function onSubmit(e) {
@@ -533,16 +567,23 @@ export default function UserPage() {
       if (!lname) return setFormError("Last name is required");
       const mobilePattern = /^\+?[\d\s\-\(\)]{10,15}$/;
       if (!mobileVal) return setFormError("Mobile number is required");
-      if (!mobilePattern.test(mobileVal)) return setFormError("Please enter a valid mobile number");
+      if (!mobilePattern.test(mobileVal))
+        return setFormError("Please enter a valid mobile number");
       setSubmitting(true);
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("token") : null;
         const headers = { "Content-Type": "application/json" };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const payload = { first_name: fname, last_name: lname, mobile: mobileVal };
+        const payload = {
+          first_name: fname,
+          last_name: lname,
+          mobile: mobileVal,
+        };
         if (form.profile_image && typeof form.profile_image === "string") {
           const v = form.profile_image;
-          if (v.startsWith("http://") || v.startsWith("https://")) payload.profile_image = v;
+          if (v.startsWith("http://") || v.startsWith("https://"))
+            payload.profile_image = v;
         }
         const res = await fetch(`${API_URL}/api/users/profile`, {
           method: "PUT",
@@ -558,9 +599,7 @@ export default function UserPage() {
         }
         if (res.ok) {
           setUser(parsed.data || parsed);
-          // Update localStorage with new user data
           localStorage.setItem("user", JSON.stringify(parsed.data || parsed));
-          // Dispatch custom event to notify Header component
           window.dispatchEvent(new CustomEvent("userUpdated"));
           setEditing(false);
         } else {
@@ -576,8 +615,10 @@ export default function UserPage() {
     async function onSubmitPassword(e) {
       e.preventDefault();
       setPwMessage("");
-      const { current_password, new_password, new_password_confirmation } = pwForm;
-      if (!current_password) return setPwMessage("Current password is required");
+      const { current_password, new_password, new_password_confirmation } =
+        pwForm;
+      if (!current_password)
+        return setPwMessage("Current password is required");
       if (!new_password) return setPwMessage("New password is required");
       if (new_password.length < 6)
         return setPwMessage("New password must be at least 6 characters");
@@ -585,7 +626,8 @@ export default function UserPage() {
         return setPwMessage("New passwords do not match");
       setPwSubmitting(true);
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("token") : null;
         const headers = { "Content-Type": "application/json" };
         if (token) headers.Authorization = `Bearer ${token}`;
         const res = await fetch(`${API_URL}/api/users/change-password`, {
@@ -602,7 +644,11 @@ export default function UserPage() {
         }
         if (res.ok) {
           setPwMessage("Password updated successfully");
-          setPwForm({ current_password: "", new_password: "", new_password_confirmation: "" });
+          setPwForm({
+            current_password: "",
+            new_password: "",
+            new_password_confirmation: "",
+          });
         } else {
           setPwMessage(parsed.message || "Failed to update password");
         }
@@ -616,7 +662,6 @@ export default function UserPage() {
     return (
       <div className={styles.profileCard}>
         <h2 className={styles.dashboardTitle}>My Profile</h2>
-
         <div className={styles.profileRow}>
           <div>
             <div className={styles.avatarWrap}>
@@ -630,21 +675,37 @@ export default function UserPage() {
                 />
               ) : (
                 <div className={styles.avatar}>
-                  {(user?.full_name || user?.first_name || user?.username || "")[0]}
+                  {
+                    (user?.full_name ||
+                      user?.first_name ||
+                      user?.username ||
+                      "")[0]
+                  }
                 </div>
               )}
             </div>
             {editing ? (
               <div style={{ marginTop: 12 }}>
-                <UploadButton
-                  endpoint="imageUploader"
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleAuthenticatedUpload(e.target.files[0]);
+                    }
+                  }}
+                />
+                <button
                   className={styles.uploadThingButton}
-                  aria-label="Upload profile photo"
-                  onClientUploadComplete={(res) => onUploadComplete(res)}
-                  onUploadError={() => {}}
+                  onClick={() => {
+                    setUploadTarget("profile");
+                    fileInputRef.current?.click();
+                  }}
                 >
                   Upload photo
-                </UploadButton>
+                </button>
               </div>
             ) : null}
           </div>
@@ -682,9 +743,15 @@ export default function UserPage() {
                     required
                   />
                 </div>
-                {formError ? <div className={styles.error}>{formError}</div> : null}
+                {formError ? (
+                  <div className={styles.error}>{formError}</div>
+                ) : null}
                 <div className={styles.formActions}>
-                  <button type="submit" disabled={submitting} className={styles.primary}>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className={styles.primary}
+                  >
                     {submitting ? "Saving..." : "Save Changes"}
                   </button>
                   <button
@@ -700,7 +767,9 @@ export default function UserPage() {
               <>
                 <div className={styles.name}>
                   {user?.full_name ||
-                    `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
+                    `${user?.first_name || ""} ${
+                      user?.last_name || ""
+                    }`.trim() ||
                     user?.username}
                 </div>
                 <div className={styles.field}>
@@ -714,9 +783,14 @@ export default function UserPage() {
                 </div>
                 <div className={styles.field}>
                   <strong>Member since:</strong>{" "}
-                  {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}
+                  {user?.created_at
+                    ? new Date(user.created_at).toLocaleDateString()
+                    : "Unknown"}
                 </div>
-                <button onClick={() => setEditing(true)} className={styles.primary}>
+                <button
+                  onClick={() => setEditing(true)}
+                  className={styles.primary}
+                >
                   Edit Profile
                 </button>
               </>
@@ -724,11 +798,13 @@ export default function UserPage() {
           </div>
         </div>
 
-        {/* Password Change Section */}
         <div style={{ marginTop: 32 }}>
           <h3 className={styles.sectionHeader}>Change Password</h3>
           {changingPassword ? (
-            <form onSubmit={onSubmitPassword} className={styles.passwordContainer}>
+            <form
+              onSubmit={onSubmitPassword}
+              className={styles.passwordContainer}
+            >
               <div className={styles.field}>
                 <label>Current Password</label>
                 <input
@@ -760,12 +836,22 @@ export default function UserPage() {
                 />
               </div>
               {pwMessage ? (
-                <div className={pwMessage.includes("successfully") ? styles.success : styles.error}>
+                <div
+                  className={
+                    pwMessage.includes("successfully")
+                      ? styles.success
+                      : styles.error
+                  }
+                >
                   {pwMessage}
                 </div>
               ) : null}
               <div className={styles.formActions}>
-                <button type="submit" disabled={pwSubmitting} className={styles.primary}>
+                <button
+                  type="submit"
+                  disabled={pwSubmitting}
+                  className={styles.primary}
+                >
                   {pwSubmitting ? "Updating..." : "Update Password"}
                 </button>
                 <button
@@ -778,7 +864,10 @@ export default function UserPage() {
               </div>
             </form>
           ) : (
-            <button onClick={() => setChangingPassword(true)} className={styles.secondary}>
+            <button
+              onClick={() => setChangingPassword(true)}
+              className={styles.secondary}
+            >
               Change Password
             </button>
           )}
@@ -792,15 +881,24 @@ export default function UserPage() {
       return (
         <div className={styles.profileCard}>
           <h2 className={styles.dashboardTitle}>Welcome!</h2>
-          <p className={styles.empty}>Please log in to see your dashboard summary.</p>
+          <p className={styles.empty}>
+            Please log in to see your dashboard summary.
+          </p>
         </div>
       );
     const myBookings = Array.isArray(bookings)
-      ? bookings.filter((b) => (b.booking_status || b.status || "booked") !== "cancelled")
+      ? bookings.filter(
+          (b) => (b.booking_status || b.status || "booked") !== "cancelled"
+        )
       : [];
-    const myPosts = posts.filter((p) => p.user_id === user.id || p.user_id === user.user_id);
+    const myPosts = posts.filter(
+      (p) => p.user_id === user.id || p.user_id === user.user_id
+    );
     const myFavorites = favorites.filter(
-      (f) => f.user_id === user.id || f.user_id === user.user_id || f.userId === user.id
+      (f) =>
+        f.user_id === user.id ||
+        f.user_id === user.user_id ||
+        f.userId === user.id
     );
     return (
       <div className={styles.profileCard}>
@@ -881,7 +979,9 @@ export default function UserPage() {
       );
 
     const visibleBookings = Array.isArray(bookings)
-      ? bookings.filter((bb) => (bb.booking_status || bb.status || "booked") !== "cancelled")
+      ? bookings.filter(
+          (bb) => (bb.booking_status || bb.status || "booked") !== "cancelled"
+        )
       : [];
 
     return (
@@ -895,35 +995,40 @@ export default function UserPage() {
           <div className={styles.bookingsEmpty}>
             <div className={styles.bookingsEmptyIcon}>📋</div>
             <h3>No bookings yet</h3>
-            <p>Your travel bookings will appear here once you make a reservation</p>
+            <p>
+              Your travel bookings will appear here once you make a reservation
+            </p>
           </div>
         ) : (
           <div className={styles.cardGrid}>
             {visibleBookings.map((booking) => {
               const tourId = booking.tour_id || null;
-              const matchingTour = tourId
-                ? tours.find((t) => String(t.id) === String(tourId))
+              const title =
+                booking.trip_name ||
+                booking.plan_name ||
+                booking.name ||
+                "Booked Trip";
+              const img =
+                booking.cover_image_url || booking.cover_image || null;
+              const bookedAt = booking.booked_at
+                ? new Date(booking.booked_at)
                 : null;
-
-              const title = booking.trip_name || booking.plan_name || booking.name || "Booked Trip";
-              const img = booking.cover_image_url || booking.cover_image || null;
-              const bookedAt = booking.booked_at ? new Date(booking.booked_at) : null;
               const total =
-                typeof booking.total_price_minor === "number" ? booking.total_price_minor : null;
+                typeof booking.total_price_minor === "number"
+                  ? booking.total_price_minor
+                  : null;
               const currency = booking.currency_code || "USD";
-              const status = booking.booking_status || booking.status || "pending";
-              const bookingType = booking.plan_type || (booking.tour_id ? "tour" : "custom");
-
+              const status =
+                booking.booking_status || booking.status || "pending";
+              const bookingType =
+                booking.plan_type || (booking.tour_id ? "tour" : "custom");
               const link = booking.tour_id
                 ? `/tours/${booking.tour_id}`
                 : booking.trip_id
-                  ? `/trips/${booking.trip_id}`
-                  : "#";
+                ? `/trips/${booking.trip_id}`
+                : "#";
 
-              // Create a card object that matches the Card component structure
               const cardData = {
-                // For bookings of type 'tour' use the underlying tour id so
-                // favorites target the tour resource (not the booking resource).
                 id: tourId || booking.booking_id || booking.id,
                 name: title,
                 cover_image_url: img,
@@ -939,16 +1044,23 @@ export default function UserPage() {
               };
 
               return (
-                <div key={booking.booking_id || booking.id} className={styles.cardWrapper}>
+                <div
+                  key={booking.booking_id || booking.id}
+                  className={styles.cardWrapper}
+                >
                   <div style={{ position: "relative" }}>
                     <Card
                       card={cardData}
                       viewLink={link}
-                      onFavoriteChange={(payload) => handleFavoriteChange(payload)}
-                      // only allow favoriting when we have a concrete tour id
+                      onFavoriteChange={(payload) =>
+                        handleFavoriteChange(payload)
+                      }
                       showFavorite={Boolean(tourId)}
                     />
-                    <div className={styles.cardActions} style={{ marginTop: 8 }}>
+                    <div
+                      className={styles.cardActions}
+                      style={{ marginTop: 8 }}
+                    >
                       <a
                         href={link}
                         className={styles.secondary}
@@ -964,18 +1076,10 @@ export default function UserPage() {
                           cancelBooking(booking);
                         }}
                         disabled={
-                          !!cancelling[
-                            String(
-                              booking.booking_id || booking.id || booking.tour_id || booking.trip_id
-                            )
-                          ]
+                          !!cancelling[String(booking.booking_id || booking.id)]
                         }
                       >
-                        {cancelling[
-                          String(
-                            booking.booking_id || booking.id || booking.tour_id || booking.trip_id
-                          )
-                        ]
+                        {cancelling[String(booking.booking_id || booking.id)]
                           ? "Cancelling..."
                           : "Cancel Booking"}
                       </button>
@@ -990,66 +1094,6 @@ export default function UserPage() {
     );
   }
 
-  function renderTrips() {
-    if (!user)
-      return (
-        <div className={styles.profileCard}>
-          <p className={styles.empty}>Please log in to view your trips.</p>
-        </div>
-      );
-
-    const myTrips = tours.filter(
-      (t) => t.owner_id === user.id || t.owner_id === user.sub || t.owner_id === user.user_id
-    );
-    const upcoming = myTrips.filter((t) => t.start_date && new Date(t.start_date) >= new Date());
-    const past = myTrips.filter((t) => t.start_date && new Date(t.start_date) < new Date());
-
-    return (
-      <div className={styles.profileCard}>
-        <div className={styles.sectionHeader}>
-          <h3>My Trips</h3>
-          <button className={styles.addButton}>+ Add New Trip</button>
-        </div>
-
-        <div className={styles.subSection}>
-          <h4>Upcoming Trips</h4>
-          <div className={styles.cardGrid}>
-            {upcoming.length === 0 ? (
-              <p className={styles.empty}>No upcoming trips.</p>
-            ) : (
-              upcoming.map((t) => (
-                <div key={t.id} className={styles.card}>
-                  <div className={styles.cardTitle}>{t.name}</div>
-                  <div className={styles.cardMeta}>
-                    {t.duration_days} days • {t.destination}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className={styles.subSection}>
-          <h4>Past Trips</h4>
-          <div className={styles.cardGrid}>
-            {past.length === 0 ? (
-              <p className={styles.empty}>No past trips.</p>
-            ) : (
-              past.map((t) => (
-                <div key={t.id} className={styles.card}>
-                  <div className={styles.cardTitle}>{t.name}</div>
-                  <div className={styles.cardMeta}>
-                    {t.duration_days} days • {t.destination}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function renderPosts() {
     if (!user)
       return (
@@ -1057,7 +1101,9 @@ export default function UserPage() {
           <p className={styles.empty}>Please log in to see your posts.</p>
         </div>
       );
-    const myPosts = posts.filter((p) => p.user_id === user.id || p.user_id === user.user_id);
+    const myPosts = posts.filter(
+      (p) => p.user_id === user.id || p.user_id === user.user_id
+    );
     return (
       <div className={styles.profileCard}>
         <div className={styles.sectionHeader}>
@@ -1100,39 +1146,45 @@ export default function UserPage() {
                     className={styles.primary}
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if (!confirm("Are you sure you want to delete this post?")) return;
+                      if (
+                        !confirm("Are you sure you want to delete this post?")
+                      )
+                        return;
                       setCreateError("");
                       try {
                         const token =
-                          typeof window !== "undefined" ? localStorage.getItem("token") : null;
+                          typeof window !== "undefined"
+                            ? localStorage.getItem("token")
+                            : null;
                         const headers = {};
                         if (token) headers.Authorization = `Bearer ${token}`;
-                        const res = await fetch(`${API_URL}/api/blogposts/${p.id}`, {
-                          method: "DELETE",
-                          headers,
-                        });
+                        const res = await fetch(
+                          `${API_URL}/api/blogposts/${p.id}`,
+                          {
+                            method: "DELETE",
+                            headers,
+                          }
+                        );
                         if (res.ok) {
                           setPosts((all) =>
-                            Array.isArray(all) ? all.filter((x) => x.id !== p.id) : []
+                            Array.isArray(all)
+                              ? all.filter((x) => x.id !== p.id)
+                              : []
                           );
                         } else {
-                          setPosts((all) =>
-                            Array.isArray(all) ? all.filter((x) => x.id !== p.id) : []
-                          );
                           const text = await res.text();
                           try {
                             const parsed = JSON.parse(text);
                             setCreateError(
-                              parsed.message || parsed.error || "Failed to delete post"
+                              parsed.message ||
+                                parsed.error ||
+                                "Failed to delete post"
                             );
                           } catch {
                             setCreateError(text || "Failed to delete post");
                           }
                         }
                       } catch (err) {
-                        setPosts((all) =>
-                          Array.isArray(all) ? all.filter((x) => x.id !== p.id) : []
-                        );
                         setCreateError(err.message || "Failed to delete post");
                       }
                     }}
@@ -1172,7 +1224,9 @@ export default function UserPage() {
                   <Card
                     card={t}
                     viewLink={`/tours/${t.id}`}
-                    onFavoriteChange={(payload) => handleFavoriteChange(payload)}
+                    onFavoriteChange={(payload) =>
+                      handleFavoriteChange(payload)
+                    }
                   />
                 </div>
               ))}
@@ -1190,7 +1244,9 @@ export default function UserPage() {
                 <div key={p.id} className={styles.cardWrapper}>
                   <BlogCard
                     card={p}
-                    onFavoriteChange={(payload) => handleFavoriteChange(payload)}
+                    onFavoriteChange={(payload) =>
+                      handleFavoriteChange(payload)
+                    }
                   />
                 </div>
               ))}
@@ -1200,7 +1256,8 @@ export default function UserPage() {
 
         <div className={styles.subSection}>
           <h4>Favorite Attractions</h4>
-          {!Array.isArray(favoriteAttractions) || favoriteAttractions.length === 0 ? (
+          {!Array.isArray(favoriteAttractions) ||
+          favoriteAttractions.length === 0 ? (
             <p className={styles.empty}>No favorite attractions yet.</p>
           ) : (
             <div className={styles.cardGrid}>
@@ -1208,7 +1265,9 @@ export default function UserPage() {
                 <div key={a.id} className={styles.cardWrapper}>
                   <AttractionCard
                     card={a}
-                    onFavoriteChange={(payload) => handleFavoriteChange(payload)}
+                    onFavoriteChange={(payload) =>
+                      handleFavoriteChange(payload)
+                    }
                   />
                 </div>
               ))}
@@ -1231,7 +1290,9 @@ export default function UserPage() {
             <nav className={styles.dashboardNav}>
               <div
                 onClick={() => setCurrentSection("summary")}
-                className={`${styles.navItem} ${currentSection === "summary" ? styles.active : ""}`}
+                className={`${styles.navItem} ${
+                  currentSection === "summary" ? styles.active : ""
+                }`}
               >
                 <div className={styles.navIcon}>
                   <svg
@@ -1252,7 +1313,9 @@ export default function UserPage() {
               </div>
               <div
                 onClick={() => setCurrentSection("bookings")}
-                className={`${styles.navItem} ${currentSection === "bookings" ? styles.active : ""}`}
+                className={`${styles.navItem} ${
+                  currentSection === "bookings" ? styles.active : ""
+                }`}
               >
                 <div className={styles.navIcon}>
                   <svg
@@ -1271,7 +1334,9 @@ export default function UserPage() {
               </div>
               <div
                 onClick={() => setCurrentSection("posts")}
-                className={`${styles.navItem} ${currentSection === "posts" ? styles.active : ""}`}
+                className={`${styles.navItem} ${
+                  currentSection === "posts" ? styles.active : ""
+                }`}
               >
                 <div className={styles.navIcon}>
                   <svg
@@ -1293,7 +1358,9 @@ export default function UserPage() {
               </div>
               <div
                 onClick={() => setCurrentSection("favorites")}
-                className={`${styles.navItem} ${currentSection === "favorites" ? styles.active : ""}`}
+                className={`${styles.navItem} ${
+                  currentSection === "favorites" ? styles.active : ""
+                }`}
               >
                 <div className={styles.navIcon}>
                   <svg
@@ -1311,7 +1378,9 @@ export default function UserPage() {
               </div>
               <div
                 onClick={() => setCurrentSection("profile")}
-                className={`${styles.navItem} ${currentSection === "profile" ? styles.active : ""}`}
+                className={`${styles.navItem} ${
+                  currentSection === "profile" ? styles.active : ""
+                }`}
               >
                 <div className={styles.navIcon}>
                   <svg
@@ -1344,12 +1413,20 @@ export default function UserPage() {
       </div>
 
       {showCreatePostModal && (
-        <div className={styles.modalBackdrop} onClick={() => setShowCreatePostModal(false)}>
+        <div
+          className={styles.modalBackdrop}
+          onClick={() => setShowCreatePostModal(false)}
+        >
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.modalClose} onClick={() => setShowCreatePostModal(false)}>
+            <button
+              className={styles.modalClose}
+              onClick={() => setShowCreatePostModal(false)}
+            >
               ×
             </button>
-            <h3 className={styles.modalTitle}>{newPost.id ? "Edit Post" : "Create Blog Post"}</h3>
+            <h3 className={styles.modalTitle}>
+              {newPost.id ? "Edit Post" : "Create Blog Post"}
+            </h3>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -1362,14 +1439,17 @@ export default function UserPage() {
                 setCreatingPost(true);
                 try {
                   const token =
-                    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+                    typeof window !== "undefined"
+                      ? localStorage.getItem("token")
+                      : null;
                   const headers = { "Content-Type": "application/json" };
                   if (token) headers.Authorization = `Bearer ${token}`;
 
                   if (newPost && newPost.id) {
-                    // edit
                     const res = await fetch(
-                      `${API_URL}/api/blogposts/${encodeURIComponent(newPost.id)}`,
+                      `${API_URL}/api/blogposts/${encodeURIComponent(
+                        newPost.id
+                      )}`,
                       {
                         method: "PUT",
                         headers,
@@ -1381,7 +1461,6 @@ export default function UserPage() {
                         }),
                       }
                     );
-
                     const text = await res.text();
                     let parsed;
                     try {
@@ -1389,13 +1468,14 @@ export default function UserPage() {
                     } catch {
                       parsed = { message: text };
                     }
-
                     if (res.ok) {
                       const updated = parsed?.data ||
                         parsed || { id: newPost.id, title, category, content };
                       setPosts((p) =>
                         Array.isArray(p)
-                          ? p.map((x) => (String(x.id) === String(updated.id) ? updated : x))
+                          ? p.map((x) =>
+                              String(x.id) === String(updated.id) ? updated : x
+                            )
                           : [updated]
                       );
                       setShowCreatePostModal(false);
@@ -1405,23 +1485,12 @@ export default function UserPage() {
                       if (hasValidationErrors(parsedErrors)) {
                         setValidationErrors(parsedErrors);
                       } else {
-                        setCreateError(parsed.message || parsed.error || "Failed to update post");
+                        setCreateError(
+                          parsed.message ||
+                            parsed.error ||
+                            "Failed to update post"
+                        );
                       }
-                      // fallback local update
-                      const updatedLocal = {
-                        ...newPost,
-                        title,
-                        category,
-                        content,
-                        updated_at: new Date().toISOString(),
-                        _local: true,
-                      };
-                      setPosts((p) =>
-                        Array.isArray(p)
-                          ? p.map((x) => (String(x.id) === String(newPost.id) ? updatedLocal : x))
-                          : [updatedLocal]
-                      );
-                      setShowCreatePostModal(false);
                     }
                   } else {
                     const res = await fetch(`${API_URL}/api/blogposts`, {
@@ -1434,7 +1503,6 @@ export default function UserPage() {
                         cover_image_url: newPost.cover_image_url,
                       }),
                     });
-
                     const text = await res.text();
                     let parsed;
                     try {
@@ -1442,16 +1510,22 @@ export default function UserPage() {
                     } catch {
                       parsed = { message: text };
                     }
-
                     if (res.ok) {
                       const created = parsed?.data ||
-                        parsed || { id: `local-${Date.now()}`, title, category, content };
+                        parsed || {
+                          id: `local-${Date.now()}`,
+                          title,
+                          category,
+                          content,
+                        };
                       const withAuthor = {
                         ...(created || {}),
                         author_name:
                           (user &&
                             (user.full_name ||
-                              `${user.first_name || ""} ${user.last_name || ""}`.trim())) ||
+                              `${user.first_name || ""} ${
+                                user.last_name || ""
+                              }`.trim())) ||
                           created?.author_name ||
                           null,
                         author_profile_image:
@@ -1459,7 +1533,10 @@ export default function UserPage() {
                           created?.author_profile_image ||
                           null,
                       };
-                      setPosts((p) => [withAuthor, ...(Array.isArray(p) ? p : [])]);
+                      setPosts((p) => [
+                        withAuthor,
+                        ...(Array.isArray(p) ? p : []),
+                      ]);
                       setShowCreatePostModal(false);
                       setCreateError("");
                     } else {
@@ -1467,42 +1544,16 @@ export default function UserPage() {
                       if (hasValidationErrors(parsedErrors)) {
                         setValidationErrors(parsedErrors);
                       } else {
-                        setCreateError(parsed.message || parsed.error || "Failed to create post");
+                        setCreateError(
+                          parsed.message ||
+                            parsed.error ||
+                            "Failed to create post"
+                        );
                       }
-                      // create local fallback
-                      const localId = `local-${Date.now()}`;
-                      const created = {
-                        id: localId,
-                        title,
-                        category,
-                        content,
-                        user_id: user?.id || null,
-                        created_at: new Date().toISOString(),
-                        _local: true,
-                        author_name:
-                          (user &&
-                            (user.full_name ||
-                              `${user.first_name || ""} ${user.last_name || ""}`.trim())) ||
-                          null,
-                        author_profile_image: (user && (user.profile_image || null)) || null,
-                      };
-                      setPosts((p) => [created, ...(Array.isArray(p) ? p : [])]);
-                      setShowCreatePostModal(false);
                     }
                   }
                 } catch (err) {
-                  const localId = `local-${Date.now()}`;
-                  const created = {
-                    id: localId,
-                    title: newPost.title,
-                    category: newPost.category,
-                    content: newPost.content,
-                    user_id: user?.id || null,
-                    created_at: new Date().toISOString(),
-                    _local: true,
-                  };
-                  setPosts((p) => [created, ...(Array.isArray(p) ? p : [])]);
-                  setShowCreatePostModal(false);
+                  setCreateError(err.message || "An unexpected error occurred");
                 } finally {
                   setCreatingPost(false);
                 }
@@ -1513,16 +1564,23 @@ export default function UserPage() {
                 <input
                   type="text"
                   value={newPost.title}
-                  onChange={(e) => setNewPost((n) => ({ ...n, title: e.target.value }))}
+                  onChange={(e) =>
+                    setNewPost((n) => ({ ...n, title: e.target.value }))
+                  }
                 />
-                <FieldError error={getFieldError(validationErrors, "title")} fieldName="Title" />
+                <FieldError
+                  error={getFieldError(validationErrors, "title")}
+                  fieldName="Title"
+                />
               </div>
               <div className={styles.field}>
                 <label>Category</label>
                 <input
                   type="text"
                   value={newPost.category}
-                  onChange={(e) => setNewPost((n) => ({ ...n, category: e.target.value }))}
+                  onChange={(e) =>
+                    setNewPost((n) => ({ ...n, category: e.target.value }))
+                  }
                 />
                 <FieldError
                   error={getFieldError(validationErrors, "category")}
@@ -1533,7 +1591,9 @@ export default function UserPage() {
                 <label>Content</label>
                 <textarea
                   value={newPost.content}
-                  onChange={(e) => setNewPost((n) => ({ ...n, content: e.target.value }))}
+                  onChange={(e) =>
+                    setNewPost((n) => ({ ...n, content: e.target.value }))
+                  }
                   rows={6}
                 />
                 <FieldError
@@ -1555,7 +1615,9 @@ export default function UserPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setNewPost((n) => ({ ...n, cover_image_url: "" }))}
+                        onClick={() =>
+                          setNewPost((n) => ({ ...n, cover_image_url: "" }))
+                        }
                         className={styles.removeImageButton}
                       >
                         Remove Image
@@ -1565,41 +1627,25 @@ export default function UserPage() {
                     <div>
                       <input
                         type="file"
+                        ref={fileInputRef}
+                        style={{ display: "none" }}
                         accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            try {
-                              const formData = new FormData();
-                              formData.append("files", file);
-                              formData.append("endpoint", "imageUploader");
-
-                              const response = await fetch("/api/uploadthing", {
-                                method: "POST",
-                                body: formData,
-                              });
-
-                              if (response.ok) {
-                                const result = await response.json();
-                                if (result && result.length > 0) {
-                                  setNewPost((n) => ({ ...n, cover_image_url: result[0].url }));
-                                }
-                              } else {
-                                setCreateError("Upload failed");
-                              }
-                            } catch (error) {
-                              setCreateError(`Upload failed: ${error.message}`);
-                            }
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleAuthenticatedUpload(e.target.files[0]);
                           }
                         }}
-                        style={{
-                          padding: "8px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "6px",
-                          background: "white",
-                          cursor: "pointer",
-                        }}
                       />
+                      <button
+                        type="button"
+                        className={styles.uploadThingButton}
+                        onClick={() => {
+                          setUploadTarget("post");
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        Upload Cover Image
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1613,8 +1659,16 @@ export default function UserPage() {
                 >
                   Cancel
                 </button>
-                <button type="submit" disabled={creatingPost} className={styles.primary}>
-                  {creatingPost ? "Saving…" : newPost.id ? "Save changes" : "Create post"}
+                <button
+                  type="submit"
+                  disabled={creatingPost}
+                  className={styles.primary}
+                >
+                  {creatingPost
+                    ? "Saving…"
+                    : newPost.id
+                    ? "Save changes"
+                    : "Create post"}
                 </button>
               </div>
             </form>
