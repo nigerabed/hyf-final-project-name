@@ -139,8 +139,7 @@ export default function AttractionDetailsPage() {
             {(() => {
               const finalImageSrc =
                 (imageSrc && String(imageSrc).trim()) ||
-                (attraction.cover_image_url &&
-                  String(attraction.cover_image_url).trim()) ||
+                (attraction.cover_image_url && String(attraction.cover_image_url).trim()) ||
                 null;
               if (!finalImageSrc) {
                 return (

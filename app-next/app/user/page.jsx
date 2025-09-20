@@ -2,14 +2,19 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { UploadButton } from "@uploadthing/react";
+import Image from "next/image";
 import styles from "./User.module.css";
-import { parseValidationErrors, getFieldError, hasValidationErrors } from "../../utils/validationUtils";
+import {
+  parseValidationErrors,
+  getFieldError,
+  hasValidationErrors,
+} from "../../utils/validationUtils";
 import FieldError from "../../components/FieldError/FieldError";
 import Card from "../../components/Card/Card";
 import cardStyles from "../../components/Card/Card.module.css";
 import BlogCard from "../../components/BlogCard/BlogCard";
 import AttractionCard from "../../components/AttractionCard/AttractionCard";
+import { UploadButton } from "@uploadthing/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -30,208 +35,17 @@ export default function UserPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  
-  // Image cropping states (moved to main component)
-  const [showCropModal, setShowCropModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [cropData, setCropData] = useState({ x: 0, y: 0, width: 200, height: 200 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [isUploading, setIsUploading] = useState(false);
-  const [croppedFile, setCroppedFile] = useState(null);
-  const fileInputRef = useRef(null);
-  const imageRef = useRef(null);
 
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
-  const [newPost, setNewPost] = useState({ title: "", category: "", content: "", cover_image_url: "" });
+  const [newPost, setNewPost] = useState({
+    title: "",
+    category: "",
+    content: "",
+    cover_image_url: "",
+  });
   const [creatingPost, setCreatingPost] = useState(false);
   const [createError, setCreateError] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
-
-  // Add global mouse event listeners for smooth cropping
-  useEffect(() => {
-    if (showCropModal) {
-      const handleGlobalMouseMove = (e) => {
-        if (isDragging) {
-          handleMouseMove(e);
-        }
-      };
-      
-      const handleGlobalMouseUp = (e) => {
-        if (isDragging) {
-          handleMouseUp(e);
-        }
-      };
-      
-      document.addEventListener('mousemove', handleGlobalMouseMove);
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleGlobalMouseMove);
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [showCropModal, isDragging]);
-
-  // Image cropping functions (moved to main component)
-  function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedFile(file);
-      setShowCropModal(true);
-      // Reset crop data
-      setCropData({ x: 0, y: 0, width: 200, height: 200 });
-    }
-  }
-
-  function handleMouseDown(e) {
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - cropData.x, y: e.clientY - cropData.y });
-  }
-
-  function handleMouseMove(e) {
-    if (!isDragging) return;
-    e.preventDefault();
-    
-    const newX = e.clientX - dragStart.x;
-    const newY = e.clientY - dragStart.y;
-    
-    setCropData(prev => ({
-      ...prev,
-      x: Math.max(0, Math.min(newX, 300 - prev.width)),
-      y: Math.max(0, Math.min(newY, 300 - prev.height))
-    }));
-  }
-
-  function handleMouseUp(e) {
-    e.preventDefault();
-    setIsDragging(false);
-  }
-
-  function handleResize(e, direction) {
-    e.stopPropagation();
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    if (direction === 'se') {
-      setCropData(prev => ({
-        ...prev,
-        width: Math.max(100, Math.min(x - prev.x, 300 - prev.x)),
-        height: Math.max(100, Math.min(y - prev.y, 300 - prev.y))
-      }));
-    }
-  }
-
-  async function cropAndUpload() {
-    if (!selectedFile || !imageRef.current || isUploading) return;
-    
-    setIsUploading(true);
-    
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      
-      await new Promise((resolve, reject) => {
-        img.onload = () => {
-          canvas.width = 200;
-          canvas.height = 200;
-          
-          // Calculate scale
-          const scaleX = img.width / 300;
-          const scaleY = img.height / 300;
-          
-          // Draw cropped image
-          ctx.drawImage(
-            img,
-            cropData.x * scaleX,
-            cropData.y * scaleY,
-            cropData.width * scaleX,
-            cropData.height * scaleY,
-            0, 0, 200, 200
-          );
-          
-          resolve();
-        };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(selectedFile);
-      });
-      
-      // Convert to blob
-      const blob = await new Promise((resolve) => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.9);
-      });
-      
-      if (!blob) {
-        throw new Error('Failed to create image blob');
-      }
-      
-      // Create FormData for direct upload
-      const formData = new FormData();
-      formData.append('files', blob, 'profile.jpg');
-      formData.append('endpoint', 'imageUploader');
-      
-      // Upload directly to uploadthing
-      const uploadResponse = await fetch('/api/uploadthing', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Upload failed: ${errorText}`);
-      }
-      
-      const uploadResult = await uploadResponse.json();
-      
-      if (!uploadResult || !uploadResult[0] || !uploadResult[0].url) {
-        throw new Error('Invalid upload response');
-      }
-      
-      const imageUrl = uploadResult[0].url;
-      
-      // Update profile with new image
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
-      const profileResponse = await fetch(`${API_URL}/api/users/profile`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ profile_image: imageUrl }),
-      });
-      
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json();
-        const updatedUser = profileData.data || profileData;
-        
-        // Update user state and localStorage
-        setUser(updatedUser);
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        
-        // Dispatch custom event to update header
-        window.dispatchEvent(new CustomEvent("userUpdated"));
-        
-        // Close crop modal
-        setShowCropModal(false);
-        setSelectedFile(null);
-        setCropData({ x: 50, y: 50, width: 200, height: 200 });
-        
-        alert('Profile image updated successfully!');
-      } else {
-        throw new Error('Failed to update profile');
-      }
-      
-    } catch (error) {
-      console.error('Crop and upload error:', error);
-      alert(`Error uploading image: ${error.message}`);
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
 
   // helper to safely parse JSON or return text
   async function safeParseResponse(res) {
@@ -352,6 +166,27 @@ export default function UserPage() {
       mounted = false;
     };
   }, []);
+
+  // When switching tabs, fetch fresh data for that tab so the user sees
+  // newly favorited items or updated bookings immediately when they open the tab.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!mounted) return;
+        if (currentSection === "favorites") {
+          await refreshFavorites();
+        } else if (currentSection === "bookings") {
+          await refreshBookings();
+        }
+      } catch (err) {
+        // ignore — non-critical
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [currentSection]);
 
   // recompute favoriteTours when favorites or tours change
   // Use stable string keys as dependencies (avoid passing arrays directly)
@@ -613,16 +448,16 @@ export default function UserPage() {
     };
   }, []);
 
-  // Profile view component
+  // Profile view component - exactly matching admin panel design
   function ProfileView() {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({
-      first_name: user?.first_name || "",
-      last_name: user?.last_name || "",
-      mobile: user?.mobile || "",
-      profile_image: user?.profile_image || "",
+      first_name: "",
+      last_name: "",
+      mobile: "",
+      profile_image: "",
     });
-    const [imagePreview, setImagePreview] = useState(user?.profile_image || "");
+    const [imagePreview, setImagePreview] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState("");
     const [changingPassword, setChangingPassword] = useState(false);
@@ -634,14 +469,17 @@ export default function UserPage() {
     const [pwSubmitting, setPwSubmitting] = useState(false);
     const [pwMessage, setPwMessage] = useState("");
 
+    // Update form when user changes
     useEffect(() => {
-      setForm({
-        first_name: user?.first_name || "",
-        last_name: user?.last_name || "",
-        mobile: user?.mobile || "",
-        profile_image: user?.profile_image || "",
-      });
-      setImagePreview(user?.profile_image || "");
+      if (user) {
+        setForm({
+          first_name: user?.first_name || "",
+          last_name: user?.last_name || "",
+          mobile: user?.mobile || "",
+          profile_image: user?.profile_image || "",
+        });
+        setImagePreview(user?.profile_image || "");
+      }
     }, [user]);
 
     function onChange(e) {
@@ -726,31 +564,23 @@ export default function UserPage() {
           window.dispatchEvent(new CustomEvent("userUpdated"));
           setEditing(false);
         } else {
-          const details = parsed.details || parsed.errors || null;
-          if (Array.isArray(details) && details.length > 0) {
-            const msg = details
-              .map((d) => (d.field ? `${d.field}: ${d.message}` : d.message))
-              .join("; ");
-            setFormError(msg);
-          } else {
-            setFormError(parsed.message || parsed.error || parsed || "Failed to update profile");
-          }
+          setFormError(parsed.message || "Failed to update profile");
         }
       } catch (err) {
-        setFormError(err.message || "Failed to update profile");
+        setFormError("Network error. Please try again.");
       } finally {
         setSubmitting(false);
       }
     }
 
-    async function onPasswordSubmit(e) {
+    async function onSubmitPassword(e) {
       e.preventDefault();
       setPwMessage("");
       const { current_password, new_password, new_password_confirmation } = pwForm;
-      if (!current_password || !current_password.trim())
-        return setPwMessage("Current password is required");
-      if (!new_password || new_password.length < 8)
-        return setPwMessage("New password must be at least 8 characters");
+      if (!current_password) return setPwMessage("Current password is required");
+      if (!new_password) return setPwMessage("New password is required");
+      if (new_password.length < 6)
+        return setPwMessage("New password must be at least 6 characters");
       if (new_password !== new_password_confirmation)
         return setPwMessage("New passwords do not match");
       setPwSubmitting(true);
@@ -761,7 +591,7 @@ export default function UserPage() {
         const res = await fetch(`${API_URL}/api/users/change-password`, {
           method: "PUT",
           headers,
-          body: JSON.stringify({ current_password, new_password, new_password_confirmation }),
+          body: JSON.stringify({ current_password, new_password }),
         });
         const text = await res.text();
         let parsed;
@@ -771,96 +601,92 @@ export default function UserPage() {
           parsed = { message: text };
         }
         if (res.ok) {
-          setPwMessage(parsed.message || "Password changed successfully");
+          setPwMessage("Password updated successfully");
           setPwForm({ current_password: "", new_password: "", new_password_confirmation: "" });
-          setChangingPassword(false);
         } else {
-          const details = parsed.details || parsed.errors || null;
-          if (Array.isArray(details) && details.length > 0) {
-            const msg = details
-              .map((d) => (d.field ? `${d.field}: ${d.message}` : d.message))
-              .join("; ");
-            setPwMessage(msg);
-          } else {
-            setPwMessage(parsed.message || parsed.error || "Failed to change password");
-          }
+          setPwMessage(parsed.message || "Failed to update password");
         }
       } catch (err) {
-        setPwMessage(err.message || "Failed to change password");
+        setPwMessage("Network error. Please try again.");
       } finally {
         setPwSubmitting(false);
       }
     }
 
     return (
-      <div className={styles.profileRow}>
-        <div>
-          <div className={styles.avatarWrap}>
-            {imagePreview ? (
-              <img
-                src={imagePreview}
-                alt="avatar"
-                className={styles.avatar}
-                width={120}
-                height={120}
-              />
-            ) : (
-              <div className={styles.avatar}>
-                {(user?.full_name || user?.first_name || user?.username || "")[0]}
-              </div>
-            )}
-            {editing ? <div className={styles.avatarActions}></div> : null}
-          </div>
-          {editing ? (
-            <div style={{ marginTop: 12 }}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={styles.uploadThingButton}
-                style={{
-                  background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Choose Photo
-              </button>
-            </div>
-          ) : null}
-        </div>
+      <div className={styles.profileCard}>
+        <h2 className={styles.dashboardTitle}>My Profile</h2>
 
-        <div className={styles.info}>
-          {editing ? (
-            <>
-              <form onSubmit={onSubmit} className={styles.profileForm}>
+        <div className={styles.profileRow}>
+          <div>
+            <div className={styles.avatarWrap}>
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  alt="avatar"
+                  className={styles.avatar}
+                  width={120}
+                  height={120}
+                />
+              ) : (
+                <div className={styles.avatar}>
+                  {(user?.full_name || user?.first_name || user?.username || "")[0]}
+                </div>
+              )}
+            </div>
+            {editing ? (
+              <div style={{ marginTop: 12 }}>
+                <UploadButton
+                  endpoint="imageUploader"
+                  className={styles.uploadThingButton}
+                  aria-label="Upload profile photo"
+                  onClientUploadComplete={(res) => onUploadComplete(res)}
+                  onUploadError={() => {}}
+                >
+                  Upload photo
+                </UploadButton>
+              </div>
+            ) : null}
+          </div>
+
+          <div className={styles.info}>
+            {editing ? (
+              <form onSubmit={onSubmit}>
                 <div className={styles.field}>
-                  <label>First name</label>
-                  <input name="first_name" value={form.first_name} onChange={onChange} />
+                  <label>First Name</label>
+                  <input
+                    type="text"
+                    name="first_name"
+                    value={form.first_name}
+                    onChange={onChange}
+                    required
+                  />
                 </div>
                 <div className={styles.field}>
-                  <label>Last name</label>
-                  <input name="last_name" value={form.last_name} onChange={onChange} />
+                  <label>Last Name</label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    value={form.last_name}
+                    onChange={onChange}
+                    required
+                  />
                 </div>
                 <div className={styles.field}>
                   <label>Mobile</label>
-                  <input name="mobile" value={form.mobile} onChange={onChange} />
+                  <input
+                    type="tel"
+                    name="mobile"
+                    value={form.mobile}
+                    onChange={onChange}
+                    required
+                  />
                 </div>
-
-                {formError && <div className={styles.error}>{formError}</div>}
-
+                {formError ? <div className={styles.error}>{formError}</div> : null}
                 <div className={styles.formActions}>
+                  <button type="submit" disabled={submitting} className={styles.primary}>
+                    {submitting ? "Saving..." : "Save Changes"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setEditing(false)}
@@ -868,94 +694,93 @@ export default function UserPage() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" disabled={submitting} className={styles.primary}>
-                    {submitting ? "Saving…" : "Save profile"}
-                  </button>
                 </div>
               </form>
+            ) : (
+              <>
+                <div className={styles.name}>
+                  {user?.full_name ||
+                    `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
+                    user?.username}
+                </div>
+                <div className={styles.field}>
+                  <strong>Email:</strong> {user?.email}
+                </div>
+                <div className={styles.field}>
+                  <strong>Mobile:</strong> {user?.mobile || "Not provided"}
+                </div>
+                <div className={styles.field}>
+                  <strong>Role:</strong> {user?.role || "user"}
+                </div>
+                <div className={styles.field}>
+                  <strong>Member since:</strong>{" "}
+                  {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}
+                </div>
+                <button onClick={() => setEditing(true)} className={styles.primary}>
+                  Edit Profile
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
-              <div className={styles.passwordContainer} style={{ marginTop: 12 }}>
+        {/* Password Change Section */}
+        <div style={{ marginTop: 32 }}>
+          <h3 className={styles.sectionHeader}>Change Password</h3>
+          {changingPassword ? (
+            <form onSubmit={onSubmitPassword} className={styles.passwordContainer}>
+              <div className={styles.field}>
+                <label>Current Password</label>
+                <input
+                  type="password"
+                  name="current_password"
+                  value={pwForm.current_password}
+                  onChange={onPwChange}
+                  required
+                />
+              </div>
+              <div className={styles.field}>
+                <label>New Password</label>
+                <input
+                  type="password"
+                  name="new_password"
+                  value={pwForm.new_password}
+                  onChange={onPwChange}
+                  required
+                />
+              </div>
+              <div className={styles.field}>
+                <label>Confirm New Password</label>
+                <input
+                  type="password"
+                  name="new_password_confirmation"
+                  value={pwForm.new_password_confirmation}
+                  onChange={onPwChange}
+                  required
+                />
+              </div>
+              {pwMessage ? (
+                <div className={pwMessage.includes("successfully") ? styles.success : styles.error}>
+                  {pwMessage}
+                </div>
+              ) : null}
+              <div className={styles.formActions}>
+                <button type="submit" disabled={pwSubmitting} className={styles.primary}>
+                  {pwSubmitting ? "Updating..." : "Update Password"}
+                </button>
                 <button
                   type="button"
+                  onClick={() => setChangingPassword(false)}
                   className={styles.secondary}
-                  onClick={() => {
-                    setChangingPassword((c) => !c);
-                    setPwMessage("");
-                  }}
                 >
-                  {changingPassword ? "Hide password form" : "Change password"}
+                  Cancel
                 </button>
               </div>
-            </>
+            </form>
           ) : (
-            <div>
-              <h3 className={styles.name}>
-                {user?.full_name ||
-                  `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
-                  user?.username}
-              </h3>
-              <div className={styles.field}>
-                <strong>Username:</strong> {user?.username || "—"}
-              </div>
-              <div className={styles.field}>
-                <strong>Email:</strong> {user?.email || "—"}
-              </div>
-              <div className={styles.field}>
-                <strong>Mobile:</strong> {user?.mobile || "—"}
-              </div>
-              <div className={styles.formActions}>
-                <button onClick={() => setEditing(true)} className={styles.primary}>
-                  Edit profile
-                </button>
-              </div>
-            </div>
-          )}
-
-          {editing && changingPassword && (
-            <div style={{ marginTop: 12 }}>
-              <form onSubmit={onPasswordSubmit} className={styles.profileForm}>
-                <div className={styles.field}>
-                  <label>Current password</label>
-                  <input
-                    name="current_password"
-                    type="password"
-                    value={pwForm.current_password}
-                    onChange={onPwChange}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>New password</label>
-                  <input
-                    name="new_password"
-                    type="password"
-                    value={pwForm.new_password}
-                    onChange={onPwChange}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>Confirm new password</label>
-                  <input
-                    name="new_password_confirmation"
-                    type="password"
-                    value={pwForm.new_password_confirmation}
-                    onChange={onPwChange}
-                  />
-                </div>
-                {pwMessage && <div className={styles.error}>{pwMessage}</div>}
-                <div className={styles.formActions}>
-                  <button
-                    type="button"
-                    onClick={() => setChangingPassword(false)}
-                    className={styles.secondary}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" disabled={pwSubmitting} className={styles.primary}>
-                    {pwSubmitting ? "Changing…" : "Change password"}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <button onClick={() => setChangingPassword(true)} className={styles.secondary}>
+              Change Password
+            </button>
           )}
         </div>
       </div>
@@ -970,9 +795,9 @@ export default function UserPage() {
           <p className={styles.empty}>Please log in to see your dashboard summary.</p>
         </div>
       );
-    const myBookings = Array.isArray(bookings) ? bookings.filter(
-      (b) => (b.booking_status || b.status || "booked") !== "cancelled"
-    ) : [];
+    const myBookings = Array.isArray(bookings)
+      ? bookings.filter((b) => (b.booking_status || b.status || "booked") !== "cancelled")
+      : [];
     const myPosts = posts.filter((p) => p.user_id === user.id || p.user_id === user.user_id);
     const myFavorites = favorites.filter(
       (f) => f.user_id === user.id || f.user_id === user.user_id || f.userId === user.id
@@ -985,7 +810,14 @@ export default function UserPage() {
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="24"
+                height="24"
+              >
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
               </svg>
@@ -997,7 +829,14 @@ export default function UserPage() {
           </div>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="24"
+                height="24"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14,2 14,8 20,8"></polyline>
                 <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -1012,7 +851,14 @@ export default function UserPage() {
           </div>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="24"
+                height="24"
+              >
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
               </svg>
             </div>
@@ -1033,11 +879,9 @@ export default function UserPage() {
           <p className={styles.empty}>Please log in to view your bookings.</p>
         </div>
       );
-    
+
     const visibleBookings = Array.isArray(bookings)
-      ? bookings.filter(
-          (bb) => (bb.booking_status || bb.status || "booked") !== "cancelled"
-        )
+      ? bookings.filter((bb) => (bb.booking_status || bb.status || "booked") !== "cancelled")
       : [];
 
     return (
@@ -1046,7 +890,7 @@ export default function UserPage() {
           <h3>My Bookings</h3>
           <p>Manage your travel bookings and reservations</p>
         </div>
-        
+
         {visibleBookings.length === 0 ? (
           <div className={styles.bookingsEmpty}>
             <div className={styles.bookingsEmptyIcon}>📋</div>
@@ -1060,84 +904,51 @@ export default function UserPage() {
               const matchingTour = tourId
                 ? tours.find((t) => String(t.id) === String(tourId))
                 : null;
-              
+
               const title = booking.trip_name || booking.plan_name || booking.name || "Booked Trip";
               const img = booking.cover_image_url || booking.cover_image || null;
               const bookedAt = booking.booked_at ? new Date(booking.booked_at) : null;
-              const total = typeof booking.total_price_minor === "number" ? booking.total_price_minor : null;
+              const total =
+                typeof booking.total_price_minor === "number" ? booking.total_price_minor : null;
               const currency = booking.currency_code || "USD";
               const status = booking.booking_status || booking.status || "pending";
               const bookingType = booking.plan_type || (booking.tour_id ? "tour" : "custom");
-              
+
               const link = booking.tour_id
                 ? `/tours/${booking.tour_id}`
                 : booking.trip_id
                   ? `/trips/${booking.trip_id}`
                   : "#";
 
+              // Create a card object that matches the Card component structure
+              const cardData = {
+                // For bookings of type 'tour' use the underlying tour id so
+                // favorites target the tour resource (not the booking resource).
+                id: tourId || booking.booking_id || booking.id,
+                name: title,
+                cover_image_url: img,
+                destination: bookingType === "tour" ? "Tour" : "Custom Trip",
+                price_usd: total || 0,
+                currency_code: currency,
+                duration_days: booking.duration_days || null,
+                capacity: booking.capacity || null,
+                average_rating: booking.rating || null,
+                booking_status: status,
+                booked_at: bookedAt,
+                booking_type: bookingType,
+              };
+
               return (
                 <div key={booking.booking_id || booking.id} className={styles.cardWrapper}>
-                  <div className={styles.bookingCard}>
-                    <div className={styles.bookingHeader}>
-                      <h4 className={styles.bookingTitle}>{title}</h4>
-                      <span className={`${styles.bookingStatus} ${styles[status]}`}>
-                        {status}
-                      </span>
-                    </div>
-                    
-                    <div className={styles.bookingContent}>
-                      {img ? (
-                        <img
-                          src={img}
-                          alt={title}
-                          className={styles.bookingImage}
-                        />
-                      ) : (
-                        <div className={styles.bookingImagePlaceholder}>
-                          📸 No Image Available
-                        </div>
-                      )}
-                      
-                      <div className={styles.bookingInfo}>
-                        <div className={styles.bookingInfoItem}>
-                          <span className={styles.bookingInfoLabel}>Booking Type</span>
-                          <span className={styles.bookingInfoValue}>
-                            {bookingType === "tour" ? "🏛️ Tour" : "✈️ Custom Trip"}
-                          </span>
-                        </div>
-                        
-                        {bookedAt && (
-                          <div className={styles.bookingInfoItem}>
-                            <span className={styles.bookingInfoLabel}>Booked Date</span>
-                            <span className={styles.bookingInfoValue}>
-                              {bookedAt.toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric"
-                              })}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {total && (
-                          <div className={styles.bookingInfoItem}>
-                            <span className={styles.bookingInfoLabel}>Total Price</span>
-                            <span className={styles.bookingInfoValue}>
-                              {currency} {(total / 100).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        <div className={styles.bookingInfoItem}>
-                          <span className={styles.bookingInfoLabel}>Booking ID</span>
-                          <span className={styles.bookingInfoValue}>
-                            #{booking.booking_id || booking.id}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className={styles.bookingActions}>
+                  <div style={{ position: "relative" }}>
+                    <Card
+                      card={cardData}
+                      viewLink={link}
+                      onFavoriteChange={(payload) => handleFavoriteChange(payload)}
+                      // only allow favoriting when we have a concrete tour id
+                      showFavorite={Boolean(tourId)}
+                    />
+                    <div className={styles.cardActions} style={{ marginTop: 8 }}>
                       <a
                         href={link}
                         className={styles.secondary}
@@ -1153,10 +964,18 @@ export default function UserPage() {
                           cancelBooking(booking);
                         }}
                         disabled={
-                          !!cancelling[String(booking.booking_id || booking.id || booking.tour_id || booking.trip_id)]
+                          !!cancelling[
+                            String(
+                              booking.booking_id || booking.id || booking.tour_id || booking.trip_id
+                            )
+                          ]
                         }
                       >
-                        {cancelling[String(booking.booking_id || booking.id || booking.tour_id || booking.trip_id)]
+                        {cancelling[
+                          String(
+                            booking.booking_id || booking.id || booking.tour_id || booking.trip_id
+                          )
+                        ]
                           ? "Cancelling..."
                           : "Cancel Booking"}
                       </button>
@@ -1173,159 +992,59 @@ export default function UserPage() {
 
   function renderTrips() {
     if (!user)
-    return (
+      return (
         <div className={styles.profileCard}>
-          <p className={styles.empty}>Please log in to view your bookings.</p>
+          <p className={styles.empty}>Please log in to view your trips.</p>
         </div>
       );
-    
+
+    const myTrips = tours.filter(
+      (t) => t.owner_id === user.id || t.owner_id === user.sub || t.owner_id === user.user_id
+    );
+    const upcoming = myTrips.filter((t) => t.start_date && new Date(t.start_date) >= new Date());
+    const past = myTrips.filter((t) => t.start_date && new Date(t.start_date) < new Date());
+
     return (
       <div className={styles.profileCard}>
         <div className={styles.sectionHeader}>
-          <h3>My Bookings</h3>
+          <h3>My Trips</h3>
+          <button className={styles.addButton}>+ Add New Trip</button>
         </div>
+
+        <div className={styles.subSection}>
+          <h4>Upcoming Trips</h4>
           <div className={styles.cardGrid}>
-            {(() => {
-              const visibleBookings = Array.isArray(bookings)
-                ? bookings.filter(
-                    (bb) => (bb.booking_status || bb.status || "booked") !== "cancelled"
-                  )
-                : [];
-              if (visibleBookings.length === 0)
-                return <p className={styles.empty}>No bookings yet.</p>;
-              return visibleBookings.map((b) => {
-                const tourId = b.tour_id || null;
-                const matchingTour = tourId
-                  ? tours.find((t) => String(t.id) === String(tourId))
-                  : null;
-                if (matchingTour) {
-                  // Use existing Card component for tours so the design matches exactly
-                  return (
-                    <div key={`booking-tour-${b.id || tourId}`} className={styles.cardWrapper}>
-                      <Card
-                        card={matchingTour}
-                        viewLink={`/tours/${tourId}`}
-                        onFavoriteChange={() => {}}
-                      />
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          marginTop: 8,
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        <a
-                          href={`/tours/${tourId}`}
-                          className={styles.secondary}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          View
-                        </a>
-                        <button
-                          className={styles.secondary}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            cancelBooking(b);
-                          }}
-                          disabled={
-                            !!cancelling[String(b.booking_id || b.id || b.tour_id || b.trip_id)]
-                          }
-                        >
-                          {cancelling[String(b.booking_id || b.id || b.tour_id || b.trip_id)]
-                            ? "Cancelling..."
-                            : "Cancel"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Fallback visual for custom trips or missing tour rows - reuse Card styles
-                const link = b.tour_id
-                  ? `/tours/${b.tour_id}`
-                  : b.trip_id
-                    ? `/trips/${b.trip_id}`
-                    : `#`;
-                const title = b.trip_name || b.plan_name || b.name || "Booked item";
-                const img = b.cover_image_url || b.cover_image || null;
-                const bookedAt = b.booked_at ? new Date(b.booked_at).toLocaleString() : null;
-                const total =
-                  typeof b.total_price_minor === "number"
-                    ? b.total_price_minor
-                    : b.total_price_minor || null;
-                const currency = b.currency_code || (b.price_minor ? "USD" : null);
-                const status = b.booking_status || b.status || "booked";
-
-                return (
-                  <div
-                    key={b.id || `${b.tour_id || b.trip_id}-${b.booked_at || ""}`}
-                    className={styles.cardWrapper}
-                  >
-                    <div>
-                      <div className={cardStyles.travelCard} style={{ background: "transparent" }}>
-                        <div className={cardStyles.imageWrapper}>
-                          {img ? (
-                            // plain img for fallback cards
-                            <img
-                              src={img}
-                              alt={title}
-                              style={{ width: "100%", height: "12rem", objectFit: "cover" }}
-                            />
-                          ) : (
-                            <div
-                              style={{ width: "100%", height: "12rem", background: "#f1f5f9" }}
-                            />
-                          )}
-                        </div>
-                        <div className={cardStyles.cardContent}>
-                          <h4 className={cardStyles.cardTitle}>{title}</h4>
-                          <div className={cardStyles.cardMeta}>{bookedAt || "—"}</div>
-                          <div className={cardStyles.cardMeta}>
-                            Status: {status}
-                            {total !== null ? (
-                              <span>
-                                {" "}
-                                • {currency ? `${currency} ` : ""}
-                                {(total / 100).toFixed(2)}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div
-                            style={{
-                              marginTop: 8,
-                              display: "flex",
-                              gap: 8,
-                              justifyContent: "flex-end",
-                            }}
-                          >
-                            <Link href={link} className={styles.primary}>
-                              View
-                            </Link>
-                            <button
-                              className={styles.secondary}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                cancelBooking(b);
-                              }}
-                              disabled={
-                                !!cancelling[String(b.booking_id || b.id || b.tour_id || b.trip_id)]
-                              }
-                            >
-                              {cancelling[String(b.booking_id || b.id || b.tour_id || b.trip_id)]
-                                ? "Cancelling..."
-                                : "Cancel"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+            {upcoming.length === 0 ? (
+              <p className={styles.empty}>No upcoming trips.</p>
+            ) : (
+              upcoming.map((t) => (
+                <div key={t.id} className={styles.card}>
+                  <div className={styles.cardTitle}>{t.name}</div>
+                  <div className={styles.cardMeta}>
+                    {t.duration_days} days • {t.destination}
                   </div>
-                );
-              });
-            })()}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className={styles.subSection}>
+          <h4>Past Trips</h4>
+          <div className={styles.cardGrid}>
+            {past.length === 0 ? (
+              <p className={styles.empty}>No past trips.</p>
+            ) : (
+              past.map((t) => (
+                <div key={t.id} className={styles.card}>
+                  <div className={styles.cardTitle}>{t.name}</div>
+                  <div className={styles.cardMeta}>
+                    {t.duration_days} days • {t.destination}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1343,16 +1062,16 @@ export default function UserPage() {
       <div className={styles.profileCard}>
         <div className={styles.sectionHeader}>
           <h3>My Posts</h3>
-            <button
+          <button
             className={styles.addButton}
-              onClick={() => {
-                setCreateError("");
-                setNewPost({ title: "", category: "", content: "" });
-                setShowCreatePostModal(true);
-              }}
-            >
-              + Create Post
-            </button>
+            onClick={() => {
+              setCreateError("");
+              setNewPost({ title: "", category: "", content: "" });
+              setShowCreatePostModal(true);
+            }}
+          >
+            + Create Post
+          </button>
         </div>
         {myPosts.length === 0 && <p className={styles.empty}>No posts yet.</p>}
         <div className={styles.cardGrid}>
@@ -1362,7 +1081,7 @@ export default function UserPage() {
                 <BlogCard card={p} />
                 <div className={styles.cardActions} style={{ marginTop: 8 }}>
                   <button
-                    className={styles.secondary}
+                    className={styles.primary}
                     onClick={(e) => {
                       e.stopPropagation();
                       setCreateError("");
@@ -1378,7 +1097,7 @@ export default function UserPage() {
                     Edit
                   </button>
                   <button
-                    className={styles.secondary}
+                    className={styles.primary}
                     onClick={async (e) => {
                       e.stopPropagation();
                       if (!confirm("Are you sure you want to delete this post?")) return;
@@ -1515,7 +1234,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "summary" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <rect x="3" y="3" width="7" height="7"></rect>
                     <rect x="14" y="3" width="7" height="7"></rect>
                     <rect x="14" y="14" width="7" height="7"></rect>
@@ -1529,7 +1255,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "bookings" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                   </svg>
@@ -1541,7 +1274,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "posts" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14,2 14,8 20,8"></polyline>
                     <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -1556,7 +1296,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "favorites" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                   </svg>
                 </div>
@@ -1567,7 +1314,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "profile" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
                   </svg>
@@ -1582,11 +1336,7 @@ export default function UserPage() {
           <div id="dashboard-content-area" className={styles.dashboardContent}>
             {currentSection === "summary" && renderSummary()}
             {currentSection === "bookings" && renderBookings()}
-            {currentSection === "profile" && (
-              <div className={styles.profileCard}>
-                <ProfileView />
-              </div>
-            )}
+            {currentSection === "profile" && <ProfileView />}
             {currentSection === "posts" && renderPosts()}
             {currentSection === "favorites" && renderFavorites()}
           </div>
@@ -1608,7 +1358,7 @@ export default function UserPage() {
                 const title = (newPost.title || "").trim();
                 const category = (newPost.category || "").trim();
                 const content = (newPost.content || "").trim();
-                
+
                 setCreatingPost(true);
                 try {
                   const token =
@@ -1620,9 +1370,18 @@ export default function UserPage() {
                     // edit
                     const res = await fetch(
                       `${API_URL}/api/blogposts/${encodeURIComponent(newPost.id)}`,
-                      { method: "PUT", headers, body: JSON.stringify({ title, category, content, cover_image_url: newPost.cover_image_url }) }
+                      {
+                        method: "PUT",
+                        headers,
+                        body: JSON.stringify({
+                          title,
+                          category,
+                          content,
+                          cover_image_url: newPost.cover_image_url,
+                        }),
+                      }
                     );
-                    
+
                     const text = await res.text();
                     let parsed;
                     try {
@@ -1630,9 +1389,10 @@ export default function UserPage() {
                     } catch {
                       parsed = { message: text };
                     }
-                    
+
                     if (res.ok) {
-                      const updated = parsed?.data || parsed || { id: newPost.id, title, category, content };
+                      const updated = parsed?.data ||
+                        parsed || { id: newPost.id, title, category, content };
                       setPosts((p) =>
                         Array.isArray(p)
                           ? p.map((x) => (String(x.id) === String(updated.id) ? updated : x))
@@ -1667,9 +1427,14 @@ export default function UserPage() {
                     const res = await fetch(`${API_URL}/api/blogposts`, {
                       method: "POST",
                       headers,
-                      body: JSON.stringify({ title, category, content, cover_image_url: newPost.cover_image_url }),
+                      body: JSON.stringify({
+                        title,
+                        category,
+                        content,
+                        cover_image_url: newPost.cover_image_url,
+                      }),
                     });
-                    
+
                     const text = await res.text();
                     let parsed;
                     try {
@@ -1677,9 +1442,10 @@ export default function UserPage() {
                     } catch {
                       parsed = { message: text };
                     }
-                    
+
                     if (res.ok) {
-                      const created = parsed?.data || parsed || { id: `local-${Date.now()}`, title, category, content };
+                      const created = parsed?.data ||
+                        parsed || { id: `local-${Date.now()}`, title, category, content };
                       const withAuthor = {
                         ...(created || {}),
                         author_name:
@@ -1749,7 +1515,7 @@ export default function UserPage() {
                   value={newPost.title}
                   onChange={(e) => setNewPost((n) => ({ ...n, title: e.target.value }))}
                 />
-                <FieldError error={getFieldError(validationErrors, 'title')} fieldName="Title" />
+                <FieldError error={getFieldError(validationErrors, "title")} fieldName="Title" />
               </div>
               <div className={styles.field}>
                 <label>Category</label>
@@ -1758,7 +1524,10 @@ export default function UserPage() {
                   value={newPost.category}
                   onChange={(e) => setNewPost((n) => ({ ...n, category: e.target.value }))}
                 />
-                <FieldError error={getFieldError(validationErrors, 'category')} fieldName="Category" />
+                <FieldError
+                  error={getFieldError(validationErrors, "category")}
+                  fieldName="Category"
+                />
               </div>
               <div className={styles.field}>
                 <label>Content</label>
@@ -1767,7 +1536,10 @@ export default function UserPage() {
                   onChange={(e) => setNewPost((n) => ({ ...n, content: e.target.value }))}
                   rows={6}
                 />
-                <FieldError error={getFieldError(validationErrors, 'content')} fieldName="Content" />
+                <FieldError
+                  error={getFieldError(validationErrors, "content")}
+                  fieldName="Content"
+                />
               </div>
               <div className={styles.field}>
                 <label>Cover Image</label>
@@ -1779,7 +1551,7 @@ export default function UserPage() {
                         alt="Post cover preview"
                         width={200}
                         height={120}
-                        style={{ objectFit: 'cover', borderRadius: '8px' }}
+                        style={{ objectFit: "cover", borderRadius: "8px" }}
                       />
                       <button
                         type="button"
@@ -1790,17 +1562,45 @@ export default function UserPage() {
                       </button>
                     </div>
                   ) : (
-                    <UploadButton
-                      endpoint="imageUploader"
-                      onClientUploadComplete={(res) => {
-                        if (res && res.length > 0) {
-                          setNewPost((n) => ({ ...n, cover_image_url: res[0].url }));
-                        }
-                      }}
-                      onUploadError={(error) => {
-                        setCreateError(`Upload failed: ${error.message}`);
-                      }}
-                    />
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            try {
+                              const formData = new FormData();
+                              formData.append("files", file);
+                              formData.append("endpoint", "imageUploader");
+
+                              const response = await fetch("/api/uploadthing", {
+                                method: "POST",
+                                body: formData,
+                              });
+
+                              if (response.ok) {
+                                const result = await response.json();
+                                if (result && result.length > 0) {
+                                  setNewPost((n) => ({ ...n, cover_image_url: result[0].url }));
+                                }
+                              } else {
+                                setCreateError("Upload failed");
+                              }
+                            } catch (error) {
+                              setCreateError(`Upload failed: ${error.message}`);
+                            }
+                          }
+                        }}
+                        style={{
+                          padding: "8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "6px",
+                          background: "white",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -1809,7 +1609,7 @@ export default function UserPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreatePostModal(false)}
-                  className={styles.secondary}
+                  className={styles.primary}
                 >
                   Cancel
                 </button>
@@ -1818,132 +1618,6 @@ export default function UserPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-      
-
-      {/* Crop Modal */}
-      {showCropModal && selectedFile && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '500px',
-            width: '90%'
-          }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600' }}>
-              Crop Your Photo
-            </h3>
-            
-            <div style={{
-              position: 'relative',
-              width: '300px',
-              height: '300px',
-              margin: '0 auto 16px',
-              border: '2px solid #e5e7eb',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <img
-                ref={imageRef}
-                src={URL.createObjectURL(selectedFile)}
-                alt="Preview"
-                style={{
-                  width: 'auto',
-                  height: 'auto',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  objectFit: 'contain',
-                  userSelect: 'none',
-                  pointerEvents: 'none'
-                }}
-                draggable={false}
-              />
-              
-              {/* Crop overlay */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: cropData.x,
-                  top: cropData.y,
-                  width: cropData.width,
-                  height: cropData.height,
-                  border: '2px solid #2563eb',
-                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                  userSelect: 'none'
-                }}
-                onMouseDown={handleMouseDown}
-              >
-                {/* Resize handle */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '-4px',
-                    right: '-4px',
-                    width: '12px',
-                    height: '12px',
-                    backgroundColor: '#2563eb',
-                    border: '2px solid white',
-                    borderRadius: '50%',
-                    cursor: 'se-resize'
-                  }}
-                  onMouseDown={(e) => handleResize(e, 'se')}
-                />
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => {
-                  setShowCropModal(false);
-                  setSelectedFile(null);
-                }}
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  background: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={cropAndUpload}
-                disabled={isUploading}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  background: isUploading ? '#9ca3af' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                  color: 'white',
-                  cursor: isUploading ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  opacity: isUploading ? 0.7 : 1
-                }}
-              >
-                {isUploading ? 'Uploading...' : 'Crop & Upload'}
-              </button>
-            </div>
           </div>
         </div>
       )}

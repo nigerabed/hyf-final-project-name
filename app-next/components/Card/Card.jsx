@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-export default function Card({ card, onFavoriteChange, viewLink, size = "regular" }) {
+export default function Card({ card, onFavoriteChange, viewLink, size = "regular", showFavorite = true }) {
   // Only provide `initial` when the backend explicitly marks it truthy.
   // If backend doesn't provide a positive favourite flag, allow hook to fall back to localStorage.
   const initialFav = card.favourite ? true : undefined;
@@ -129,15 +129,17 @@ export default function Card({ card, onFavoriteChange, viewLink, size = "regular
         <p className={styles.description}>{card?.destination ?? card?.description ?? ""}</p>
 
         <div className={styles.cardFooter}>
-          <button
-            className={`${styles.heart} ${favourite ? styles.fav : ""}`}
-            onClick={toggleFavorite}
-            aria-label={favourite ? "Remove favorite" : "Add to favorites"}
-            aria-pressed={favourite}
-            type="button"
-          >
-            <Heart size={18} fill={favourite ? "currentColor" : "none"} stroke="currentColor" />
-          </button>
+          {showFavorite ? (
+            <button
+              className={`${styles.heart} ${favourite ? styles.fav : ""}`}
+              onClick={toggleFavorite}
+              aria-label={favourite ? "Remove favorite" : "Add to favorites"}
+              aria-pressed={favourite}
+              type="button"
+            >
+              <Heart size={18} fill={favourite ? "currentColor" : "none"} stroke="currentColor" />
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
