@@ -157,7 +157,12 @@ export const commentSchema = z.object({
 
 // Schema for adding a new favorite
 export const favoriteSchema = z.object({
-  item_id: z.string().uuid("A valid item ID is required."),
+  // Accept either numeric IDs or string IDs from the client. Coerce numbers to strings
+  // so downstream code can treat item_id uniformly as a string when needed.
+  item_id: z.preprocess((val) => {
+    if (typeof val === "number") return String(val);
+    return val;
+  }, z.string().min(1, "A valid item ID is required.")),
   item_type: z.enum(["tour", "post", "attraction"], {
     required_error: "Item type is required.",
     invalid_type_error: "Item type must be one of 'tour', 'post', or 'attraction'.",
