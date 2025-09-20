@@ -37,11 +37,26 @@ import adminModerationRouter from "./routers/admin/moderation.js";
 
 const app = express();
 
-// CORS configuration for frontend at localhost:3000
-app.use(cors({
-  origin: "http://localhost:3000",
-  credentials: true
-}));
+
+// CORS configuration for frontend at localhost:3000 and render
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://hyf-final-project-name-front.onrender.com",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+  })
+);
+
+
 const PORT = process.env.PORT || 3001;
 
 const apiRouter = express.Router();
@@ -51,8 +66,6 @@ const apiRouter = express.Router();
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.static("public"));
- 
-
 
 // --- Optional: Response Body Logger for Debugging ---
 const logResponseBody = (req, res, next) => {

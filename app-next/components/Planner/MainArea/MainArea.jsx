@@ -1,5 +1,3 @@
-// FILE: components/planner/MainArea/MainArea.jsx
-
 import styles from "./MainArea.module.css";
 import InviteMembers from "../Sidebar/InviteMembers";
 import GroupMembers from "./GroupMembers";
