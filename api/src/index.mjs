@@ -39,7 +39,7 @@ const app = express();
 // CORS configuration for frontend at localhost:3000 and render
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://hyf-final-project-name-front.onrender.com",
+  "https://bettertravel.onrender.com",
 ];
 
 app.use(
