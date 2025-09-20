@@ -4,7 +4,11 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import styles from "./User.module.css";
-import { parseValidationErrors, getFieldError, hasValidationErrors } from "../../utils/validationUtils";
+import {
+  parseValidationErrors,
+  getFieldError,
+  hasValidationErrors,
+} from "../../utils/validationUtils";
 import FieldError from "../../components/FieldError/FieldError";
 import Card from "../../components/Card/Card";
 import cardStyles from "../../components/Card/Card.module.css";
@@ -31,15 +35,17 @@ export default function UserPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  
 
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
-  const [newPost, setNewPost] = useState({ title: "", category: "", content: "", cover_image_url: "" });
+  const [newPost, setNewPost] = useState({
+    title: "",
+    category: "",
+    content: "",
+    cover_image_url: "",
+  });
   const [creatingPost, setCreatingPost] = useState(false);
   const [createError, setCreateError] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
-
-
 
   // helper to safely parse JSON or return text
   async function safeParseResponse(res) {
@@ -160,6 +166,27 @@ export default function UserPage() {
       mounted = false;
     };
   }, []);
+
+  // When switching tabs, fetch fresh data for that tab so the user sees
+  // newly favorited items or updated bookings immediately when they open the tab.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!mounted) return;
+        if (currentSection === "favorites") {
+          await refreshFavorites();
+        } else if (currentSection === "bookings") {
+          await refreshBookings();
+        }
+      } catch (err) {
+        // ignore — non-critical
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [currentSection]);
 
   // recompute favoriteTours when favorites or tours change
   // Use stable string keys as dependencies (avoid passing arrays directly)
@@ -441,7 +468,7 @@ export default function UserPage() {
     });
     const [pwSubmitting, setPwSubmitting] = useState(false);
     const [pwMessage, setPwMessage] = useState("");
-    
+
     // Update form when user changes
     useEffect(() => {
       if (user) {
@@ -552,8 +579,10 @@ export default function UserPage() {
       const { current_password, new_password, new_password_confirmation } = pwForm;
       if (!current_password) return setPwMessage("Current password is required");
       if (!new_password) return setPwMessage("New password is required");
-      if (new_password.length < 6) return setPwMessage("New password must be at least 6 characters");
-      if (new_password !== new_password_confirmation) return setPwMessage("New passwords do not match");
+      if (new_password.length < 6)
+        return setPwMessage("New password must be at least 6 characters");
+      if (new_password !== new_password_confirmation)
+        return setPwMessage("New passwords do not match");
       setPwSubmitting(true);
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -587,7 +616,7 @@ export default function UserPage() {
     return (
       <div className={styles.profileCard}>
         <h2 className={styles.dashboardTitle}>My Profile</h2>
-        
+
         <div className={styles.profileRow}>
           <div>
             <div className={styles.avatarWrap}>
@@ -670,7 +699,9 @@ export default function UserPage() {
             ) : (
               <>
                 <div className={styles.name}>
-                  {user?.full_name || `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.username}
+                  {user?.full_name ||
+                    `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
+                    user?.username}
                 </div>
                 <div className={styles.field}>
                   <strong>Email:</strong> {user?.email}
@@ -682,7 +713,8 @@ export default function UserPage() {
                   <strong>Role:</strong> {user?.role || "user"}
                 </div>
                 <div className={styles.field}>
-                  <strong>Member since:</strong> {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}
+                  <strong>Member since:</strong>{" "}
+                  {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}
                 </div>
                 <button onClick={() => setEditing(true)} className={styles.primary}>
                   Edit Profile
@@ -763,9 +795,9 @@ export default function UserPage() {
           <p className={styles.empty}>Please log in to see your dashboard summary.</p>
         </div>
       );
-    const myBookings = Array.isArray(bookings) ? bookings.filter(
-      (b) => (b.booking_status || b.status || "booked") !== "cancelled"
-    ) : [];
+    const myBookings = Array.isArray(bookings)
+      ? bookings.filter((b) => (b.booking_status || b.status || "booked") !== "cancelled")
+      : [];
     const myPosts = posts.filter((p) => p.user_id === user.id || p.user_id === user.user_id);
     const myFavorites = favorites.filter(
       (f) => f.user_id === user.id || f.user_id === user.user_id || f.userId === user.id
@@ -778,7 +810,14 @@ export default function UserPage() {
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="24"
+                height="24"
+              >
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
               </svg>
@@ -790,7 +829,14 @@ export default function UserPage() {
           </div>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="24"
+                height="24"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14,2 14,8 20,8"></polyline>
                 <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -805,7 +851,14 @@ export default function UserPage() {
           </div>
           <div className={styles.statCard}>
             <div className={styles.statIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                width="24"
+                height="24"
+              >
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
               </svg>
             </div>
@@ -826,11 +879,9 @@ export default function UserPage() {
           <p className={styles.empty}>Please log in to view your bookings.</p>
         </div>
       );
-    
+
     const visibleBookings = Array.isArray(bookings)
-      ? bookings.filter(
-          (bb) => (bb.booking_status || bb.status || "booked") !== "cancelled"
-        )
+      ? bookings.filter((bb) => (bb.booking_status || bb.status || "booked") !== "cancelled")
       : [];
 
     return (
@@ -839,7 +890,7 @@ export default function UserPage() {
           <h3>My Bookings</h3>
           <p>Manage your travel bookings and reservations</p>
         </div>
-        
+
         {visibleBookings.length === 0 ? (
           <div className={styles.bookingsEmpty}>
             <div className={styles.bookingsEmptyIcon}>📋</div>
@@ -853,15 +904,16 @@ export default function UserPage() {
               const matchingTour = tourId
                 ? tours.find((t) => String(t.id) === String(tourId))
                 : null;
-              
+
               const title = booking.trip_name || booking.plan_name || booking.name || "Booked Trip";
               const img = booking.cover_image_url || booking.cover_image || null;
               const bookedAt = booking.booked_at ? new Date(booking.booked_at) : null;
-              const total = typeof booking.total_price_minor === "number" ? booking.total_price_minor : null;
+              const total =
+                typeof booking.total_price_minor === "number" ? booking.total_price_minor : null;
               const currency = booking.currency_code || "USD";
               const status = booking.booking_status || booking.status || "pending";
               const bookingType = booking.plan_type || (booking.tour_id ? "tour" : "custom");
-              
+
               const link = booking.tour_id
                 ? `/tours/${booking.tour_id}`
                 : booking.trip_id
@@ -870,7 +922,9 @@ export default function UserPage() {
 
               // Create a card object that matches the Card component structure
               const cardData = {
-                id: booking.booking_id || booking.id,
+                // For bookings of type 'tour' use the underlying tour id so
+                // favorites target the tour resource (not the booking resource).
+                id: tourId || booking.booking_id || booking.id,
                 name: title,
                 cover_image_url: img,
                 destination: bookingType === "tour" ? "Tour" : "Custom Trip",
@@ -881,7 +935,7 @@ export default function UserPage() {
                 average_rating: booking.rating || null,
                 booking_status: status,
                 booked_at: bookedAt,
-                booking_type: bookingType
+                booking_type: bookingType,
               };
 
               return (
@@ -890,7 +944,9 @@ export default function UserPage() {
                     <Card
                       card={cardData}
                       viewLink={link}
-                      onFavoriteChange={() => {}}
+                      onFavoriteChange={(payload) => handleFavoriteChange(payload)}
+                      // only allow favoriting when we have a concrete tour id
+                      showFavorite={Boolean(tourId)}
                     />
                     <div className={styles.cardActions} style={{ marginTop: 8 }}>
                       <a
@@ -908,10 +964,18 @@ export default function UserPage() {
                           cancelBooking(booking);
                         }}
                         disabled={
-                          !!cancelling[String(booking.booking_id || booking.id || booking.tour_id || booking.trip_id)]
+                          !!cancelling[
+                            String(
+                              booking.booking_id || booking.id || booking.tour_id || booking.trip_id
+                            )
+                          ]
                         }
                       >
-                        {cancelling[String(booking.booking_id || booking.id || booking.tour_id || booking.trip_id)]
+                        {cancelling[
+                          String(
+                            booking.booking_id || booking.id || booking.tour_id || booking.trip_id
+                          )
+                        ]
                           ? "Cancelling..."
                           : "Cancel Booking"}
                       </button>
@@ -928,19 +992,19 @@ export default function UserPage() {
 
   function renderTrips() {
     if (!user)
-    return (
+      return (
         <div className={styles.profileCard}>
           <p className={styles.empty}>Please log in to view your trips.</p>
         </div>
       );
-    
+
     const myTrips = tours.filter(
       (t) => t.owner_id === user.id || t.owner_id === user.sub || t.owner_id === user.user_id
     );
     const upcoming = myTrips.filter((t) => t.start_date && new Date(t.start_date) >= new Date());
     const past = myTrips.filter((t) => t.start_date && new Date(t.start_date) < new Date());
-    
-                return (
+
+    return (
       <div className={styles.profileCard}>
         <div className={styles.sectionHeader}>
           <h3>My Trips</h3>
@@ -998,16 +1062,16 @@ export default function UserPage() {
       <div className={styles.profileCard}>
         <div className={styles.sectionHeader}>
           <h3>My Posts</h3>
-            <button
+          <button
             className={styles.addButton}
-              onClick={() => {
-                setCreateError("");
-                setNewPost({ title: "", category: "", content: "" });
-                setShowCreatePostModal(true);
-              }}
-            >
-              + Create Post
-            </button>
+            onClick={() => {
+              setCreateError("");
+              setNewPost({ title: "", category: "", content: "" });
+              setShowCreatePostModal(true);
+            }}
+          >
+            + Create Post
+          </button>
         </div>
         {myPosts.length === 0 && <p className={styles.empty}>No posts yet.</p>}
         <div className={styles.cardGrid}>
@@ -1170,7 +1234,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "summary" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <rect x="3" y="3" width="7" height="7"></rect>
                     <rect x="14" y="3" width="7" height="7"></rect>
                     <rect x="14" y="14" width="7" height="7"></rect>
@@ -1184,7 +1255,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "bookings" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                   </svg>
@@ -1196,7 +1274,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "posts" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14,2 14,8 20,8"></polyline>
                     <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -1211,7 +1296,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "favorites" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                   </svg>
                 </div>
@@ -1222,7 +1314,14 @@ export default function UserPage() {
                 className={`${styles.navItem} ${currentSection === "profile" ? styles.active : ""}`}
               >
                 <div className={styles.navIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    width="20"
+                    height="20"
+                  >
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
                   </svg>
@@ -1259,7 +1358,7 @@ export default function UserPage() {
                 const title = (newPost.title || "").trim();
                 const category = (newPost.category || "").trim();
                 const content = (newPost.content || "").trim();
-                
+
                 setCreatingPost(true);
                 try {
                   const token =
@@ -1271,9 +1370,18 @@ export default function UserPage() {
                     // edit
                     const res = await fetch(
                       `${API_URL}/api/blogposts/${encodeURIComponent(newPost.id)}`,
-                      { method: "PUT", headers, body: JSON.stringify({ title, category, content, cover_image_url: newPost.cover_image_url }) }
+                      {
+                        method: "PUT",
+                        headers,
+                        body: JSON.stringify({
+                          title,
+                          category,
+                          content,
+                          cover_image_url: newPost.cover_image_url,
+                        }),
+                      }
                     );
-                    
+
                     const text = await res.text();
                     let parsed;
                     try {
@@ -1281,9 +1389,10 @@ export default function UserPage() {
                     } catch {
                       parsed = { message: text };
                     }
-                    
+
                     if (res.ok) {
-                      const updated = parsed?.data || parsed || { id: newPost.id, title, category, content };
+                      const updated = parsed?.data ||
+                        parsed || { id: newPost.id, title, category, content };
                       setPosts((p) =>
                         Array.isArray(p)
                           ? p.map((x) => (String(x.id) === String(updated.id) ? updated : x))
@@ -1318,9 +1427,14 @@ export default function UserPage() {
                     const res = await fetch(`${API_URL}/api/blogposts`, {
                       method: "POST",
                       headers,
-                      body: JSON.stringify({ title, category, content, cover_image_url: newPost.cover_image_url }),
+                      body: JSON.stringify({
+                        title,
+                        category,
+                        content,
+                        cover_image_url: newPost.cover_image_url,
+                      }),
                     });
-                    
+
                     const text = await res.text();
                     let parsed;
                     try {
@@ -1328,9 +1442,10 @@ export default function UserPage() {
                     } catch {
                       parsed = { message: text };
                     }
-                    
+
                     if (res.ok) {
-                      const created = parsed?.data || parsed || { id: `local-${Date.now()}`, title, category, content };
+                      const created = parsed?.data ||
+                        parsed || { id: `local-${Date.now()}`, title, category, content };
                       const withAuthor = {
                         ...(created || {}),
                         author_name:
@@ -1400,7 +1515,7 @@ export default function UserPage() {
                   value={newPost.title}
                   onChange={(e) => setNewPost((n) => ({ ...n, title: e.target.value }))}
                 />
-                <FieldError error={getFieldError(validationErrors, 'title')} fieldName="Title" />
+                <FieldError error={getFieldError(validationErrors, "title")} fieldName="Title" />
               </div>
               <div className={styles.field}>
                 <label>Category</label>
@@ -1409,7 +1524,10 @@ export default function UserPage() {
                   value={newPost.category}
                   onChange={(e) => setNewPost((n) => ({ ...n, category: e.target.value }))}
                 />
-                <FieldError error={getFieldError(validationErrors, 'category')} fieldName="Category" />
+                <FieldError
+                  error={getFieldError(validationErrors, "category")}
+                  fieldName="Category"
+                />
               </div>
               <div className={styles.field}>
                 <label>Content</label>
@@ -1418,7 +1536,10 @@ export default function UserPage() {
                   onChange={(e) => setNewPost((n) => ({ ...n, content: e.target.value }))}
                   rows={6}
                 />
-                <FieldError error={getFieldError(validationErrors, 'content')} fieldName="Content" />
+                <FieldError
+                  error={getFieldError(validationErrors, "content")}
+                  fieldName="Content"
+                />
               </div>
               <div className={styles.field}>
                 <label>Cover Image</label>
@@ -1430,7 +1551,7 @@ export default function UserPage() {
                         alt="Post cover preview"
                         width={200}
                         height={120}
-                        style={{ objectFit: 'cover', borderRadius: '8px' }}
+                        style={{ objectFit: "cover", borderRadius: "8px" }}
                       />
                       <button
                         type="button"
@@ -1450,33 +1571,33 @@ export default function UserPage() {
                           if (file) {
                             try {
                               const formData = new FormData();
-                              formData.append('files', file);
-                              formData.append('endpoint', 'imageUploader');
-                              
-                              const response = await fetch('/api/uploadthing', {
-                                method: 'POST',
+                              formData.append("files", file);
+                              formData.append("endpoint", "imageUploader");
+
+                              const response = await fetch("/api/uploadthing", {
+                                method: "POST",
                                 body: formData,
                               });
-                              
+
                               if (response.ok) {
                                 const result = await response.json();
                                 if (result && result.length > 0) {
                                   setNewPost((n) => ({ ...n, cover_image_url: result[0].url }));
                                 }
                               } else {
-                                setCreateError('Upload failed');
+                                setCreateError("Upload failed");
                               }
                             } catch (error) {
-                        setCreateError(`Upload failed: ${error.message}`);
+                              setCreateError(`Upload failed: ${error.message}`);
                             }
                           }
                         }}
                         style={{
-                          padding: '8px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          background: 'white',
-                          cursor: 'pointer'
+                          padding: "8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "6px",
+                          background: "white",
+                          cursor: "pointer",
                         }}
                       />
                     </div>
@@ -1500,8 +1621,6 @@ export default function UserPage() {
           </div>
         </div>
       )}
-      
-
     </main>
   );
 }
