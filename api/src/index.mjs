@@ -29,12 +29,14 @@ import adminToursRouter from "./routers/admin/tours.js";
 import adminPostsRouter from "./routers/admin/posts.js";
 import adminAttractionsRouter from "./routers/admin/attractions.js";
 import adminCommentsRouter from "./routers/admin/comments.js";
+import adminReviewsRouter from "./routers/admin/reviews.js";
 import adminDashboardRouter from "./routers/admin/dashboard.js";
 import adminBookingsRouter from "./routers/admin/bookings.js";
 import adminTripsRouter from "./routers/admin/trips.js";
 import adminModerationRouter from "./routers/admin/moderation.js";
 
 const app = express();
+
 
 // CORS configuration for frontend at localhost:3000 and render
 const allowedOrigins = [
@@ -53,6 +55,7 @@ app.use(
     },
   })
 );
+
 
 const PORT = process.env.PORT || 3001;
 
@@ -109,6 +112,7 @@ app.use("/api/admin/tours", adminToursRouter);
 app.use("/api/admin/posts", adminPostsRouter);
 app.use("/api/admin/attractions", adminAttractionsRouter);
 app.use("/api/admin/comments", adminCommentsRouter);
+app.use("/api/admin/reviews", adminReviewsRouter);
 app.use("/api/admin", adminDashboardRouter);
 app.use("/api/admin/bookings", adminBookingsRouter);
 app.use("/api/admin/trips", adminTripsRouter);
