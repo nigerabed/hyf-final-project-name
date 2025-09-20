@@ -62,7 +62,7 @@ export default function UserPage() {
       const formData = new FormData();
       formData.append("files", file);
 
-      const response = await fetch(`${API_URL}/api/uploadthing`, {
+      const response = await fetch(`/api/uploadthing`, {
         method: "POST",
         body: formData,
         headers: {
