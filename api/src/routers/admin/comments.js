@@ -1,117 +1,126 @@
 import express from "express";
 import knex from "../../db.mjs";
-import { authenticateToken } from "../../middleware/auth.js";
+import { authenticateToken, requireRole } from "../../middleware/auth.js";
 
-const commentsRouter = express.Router();
+const router = express.Router();
 
-// Apply authentication to all routes
-commentsRouter.use(authenticateToken);
+router.use(authenticateToken, requireRole(["admin", "moderator"]));
 
-// Get all comments for admin management with pagination
-commentsRouter.get("/", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { limit = 5, offset = 0 } = req.query;
-    const limitNum = parseInt(limit);
-    const offsetNum = parseInt(offset);
+    const {
+      page = 1,
+      limit = 10,
+      sort = "created_at-desc",
+      status,
+    } = req.query;
 
-    const comments = await knex("comments as c")
+    const query = knex("comments as c")
       .join("users as u", "c.user_id", "u.id")
-      .leftJoin("user_posts as up", function() {
-        this.on("c.commentable_id", "=", "up.id")
-             .andOn("c.commentable_type", "=", knex.raw("'post'"));
+      .leftJoin("user_posts as up", function () {
+        this.on("up.id", "=", "c.commentable_id").andOn(
+          "c.commentable_type",
+          "=",
+          knex.raw("'post'")
+        );
       })
-      .leftJoin("attraction_posts as ap", function() {
-        this.on("c.commentable_id", "=", "ap.id")
-             .andOn("c.commentable_type", "=", knex.raw("'attraction'"));
+      .leftJoin("attraction_posts as ap", function () {
+        this.on("ap.id", "=", "c.commentable_id").andOn(
+          "c.commentable_type",
+          "=",
+          knex.raw("'attraction'")
+        );
       })
       .select(
         "c.*",
+        "u.username",
         "u.first_name",
         "u.last_name",
-        "u.username",
-        knex.raw("COALESCE(up.title, ap.title) as post_title"),
-        "c.commentable_type"
-      )
-      .orderBy("c.created_at", "desc")
-      .limit(limitNum)
-      .offset(offsetNum);
+        knex.raw("COALESCE(up.title, ap.title) as parent_title")
+      );
 
-    // Get total count for pagination
-    const totalCount = await knex("comments").count("* as count").first();
+    const countQuery = knex("comments");
 
-    // Transform the data to match the expected format
-    const transformedComments = comments.map(comment => ({
-      ...comment,
-      user: {
-        first_name: comment.first_name,
-        last_name: comment.last_name,
-        username: comment.username
-      },
-      post: {
-        title: comment.post_title
-      },
-      is_approved: comment.status === 'approved'
-    }));
+    if (status) {
+      query.where("c.status", status);
+      countQuery.where("c.status", status);
+    }
 
-    res.json({ 
-      message: "Comments retrieved successfully.", 
-      data: transformedComments,
+    const [sortField, sortOrder] = sort.split("-");
+    if (
+      ["content", "status", "created_at"].includes(sortField) &&
+      ["asc", "desc"].includes(sortOrder)
+    ) {
+      query.orderBy(`c.${sortField}`, sortOrder);
+    }
+
+    const totalResult = await countQuery.count("* as count").first();
+    const total = parseInt(totalResult.count);
+
+    const offset = (page - 1) * limit;
+    const comments = await query.limit(limit).offset(offset);
+
+    res.json({
+      message: "All comments retrieved successfully.",
+      data: comments,
       pagination: {
-        total: parseInt(totalCount.count),
-        limit: limitNum,
-        offset: offsetNum,
-        hasMore: (offsetNum + limitNum) < parseInt(totalCount.count)
-      }
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: parseInt(page),
+      },
     });
   } catch (error) {
     console.error("Error fetching all comments:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to retrieve comments.",
-      message: "We encountered an error while loading comments."
+      message: "We encountered an error while loading comments.",
     });
   }
 });
 
-// Toggle comment approval status
-commentsRouter.put("/:commentId/toggle-approval", async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
-    const { commentId } = req.params;
-    
-    // Get current approval status
-    const comment = await knex("comments")
-      .where({ id: commentId })
-      .first();
+    const { id } = req.params;
+    const { status, content } = req.body;
 
-    if (!comment) {
+    const updatePayload = {};
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+      updatePayload.status = status;
+    }
+    if (content) {
+      updatePayload.content = content;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({
+        error: "Invalid update data.",
+        message: "Please provide a valid 'status' or 'content'.",
+      });
+    }
+
+    const [updatedComment] = await knex("comments")
+      .where({ id })
+      .update(updatePayload)
+      .returning("*");
+
+    if (!updatedComment) {
       return res.status(404).json({ error: "Comment not found." });
     }
 
-    // Toggle approval status
-    const newStatus = comment.status === 'approved' ? 'pending' : 'approved';
-    
-    const [updatedComment] = await knex("comments")
-      .where({ id: commentId })
-      .update({ status: newStatus })
-      .returning("*");
-
     res.json({
-      message: `Comment ${newStatus === 'approved' ? 'approved' : 'unapproved'} successfully.`,
-      data: updatedComment
+      message: "Comment updated successfully.",
+      data: updatedComment,
     });
   } catch (error) {
-    console.error("Error toggling comment approval:", error);
-    res.status(500).json({ error: "Failed to update comment approval status." });
+    console.error("Error updating comment:", error);
+    res.status(500).json({ error: "Failed to update comment." });
   }
 });
 
-// Delete a comment (admin)
-commentsRouter.delete("/:commentId", async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
-    const { commentId } = req.params;
-
-    const deletedCount = await knex("comments")
-      .where({ id: commentId })
-      .del();
+    const { id } = req.params;
+    const deletedCount = await knex("comments").where({ id }).del();
 
     if (deletedCount === 0) {
       return res.status(404).json({ error: "Comment not found." });
@@ -124,5 +133,4 @@ commentsRouter.delete("/:commentId", async (req, res) => {
   }
 });
 
-export default commentsRouter;
-
+export default router;
