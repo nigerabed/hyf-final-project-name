@@ -2,6 +2,11 @@ import jwt from "jsonwebtoken";
 
 // Middleware to verify JWT token
 export const authenticateToken = (req, res, next) => {
+  //  allow preflight requests
+  if (req.method === "OPTIONS") {
+    return next();
+  }
+
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
 
@@ -23,12 +28,10 @@ export const optionalAuth = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
 
-  // If no token, continue without a user object
   if (!token) {
     return next();
   }
 
-  // If token is present, verify it but don't block if invalid, just proceed without user
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (!err) {
       req.user = user;
