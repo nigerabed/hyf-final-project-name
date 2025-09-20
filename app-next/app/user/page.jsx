@@ -14,7 +14,6 @@ import Card from "../../components/Card/Card";
 import cardStyles from "../../components/Card/Card.module.css";
 import BlogCard from "../../components/BlogCard/BlogCard";
 import AttractionCard from "../../components/AttractionCard/AttractionCard";
-import { useUploadThing } from "../../utils/uploadthing";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -46,29 +45,62 @@ export default function UserPage() {
   const [validationErrors, setValidationErrors] = useState({});
 
   const fileInputRef = useRef(null);
-  const [uploadTarget, setUploadTarget] = useState(null);
+  const [uploadTarget, setUploadTarget] = useState(null); // 'profile' or 'post'
+  const [isUploading, setIsUploading] = useState(false);
 
-  const { startUpload, isUploading } = useUploadThing("imageUploader", {
-    onClientUploadComplete: (res) => {
-      if (res && res[0]?.url) {
-        if (uploadTarget === "profile") {
-          onUploadComplete(res);
-        } else if (uploadTarget === "post") {
-          setNewPost((n) => ({ ...n, cover_image_url: res[0].url }));
-        }
-        alert("Upload successful!");
-      }
-    },
-    onUploadError: (error) => {
-      alert(`Upload failed: ${error.message}`);
-    },
-  });
-
-  const handleFileSelect = async (file) => {
+  // Final, robust upload handler that manually attaches the JWT
+  const handleFileSelectAndUpload = async (file) => {
     if (!file) return;
-    await startUpload([file]);
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Authentication error. Please log in again.");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("files", file);
+
+      // We use a relative path for the Next.js API route
+      const response = await fetch(`/api/uploadthing`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          // This is the critical part that attaches the token
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorBody = await response
+          .json()
+          .catch(() => ({ error: "Upload failed" }));
+        throw new Error(errorBody.error || "Server responded with an error.");
+      }
+
+      const result = await response.json();
+
+      if (result && result.length > 0) {
+        const imageUrl = result[0].url;
+        if (uploadTarget === "profile") {
+          await onUploadComplete([{ url: imageUrl }]);
+        } else if (uploadTarget === "post") {
+          setNewPost((n) => ({ ...n, cover_image_url: imageUrl }));
+        }
+      } else {
+        throw new Error("Upload completed but no URL was returned.");
+      }
+    } catch (error) {
+      alert(`Upload failed: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
+  // The rest of your file is preserved below
   async function safeParseResponse(res) {
     const text = await res.text();
     try {
@@ -337,6 +369,7 @@ export default function UserPage() {
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(
         `${API_URL}/api/bookings/${type}/${encodeURIComponent(id)}/cancel`,
         {
@@ -667,7 +700,7 @@ export default function UserPage() {
                   accept="image/*"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
-                      handleFileSelect(e.target.files[0]);
+                      handleFileSelectAndUpload(e.target.files[0]);
                     }
                   }}
                 />
@@ -684,6 +717,7 @@ export default function UserPage() {
               </div>
             ) : null}
           </div>
+
           <div className={styles.info}>
             {editing ? (
               <form onSubmit={onSubmit}>
@@ -771,6 +805,7 @@ export default function UserPage() {
             )}
           </div>
         </div>
+
         <div style={{ marginTop: 32 }}>
           <h3 className={styles.sectionHeader}>Change Password</h3>
           {changingPassword ? (
@@ -1591,7 +1626,7 @@ export default function UserPage() {
                         accept="image/*"
                         onChange={(e) => {
                           if (e.target.files && e.target.files[0]) {
-                            handleFileSelect(e.target.files[0]);
+                            handleFileSelectAndUpload(e.target.files[0]);
                           }
                         }}
                       />
