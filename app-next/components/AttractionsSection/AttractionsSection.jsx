@@ -14,7 +14,9 @@ export default function AttractionsSection() {
   // Function to fetch data from the API
   async function fetchAttractionCards() {
     try {
-      const response = await fetch(api("/attractions"));
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/attractions`
+      );
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }

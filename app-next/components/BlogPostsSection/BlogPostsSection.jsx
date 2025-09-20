@@ -12,7 +12,9 @@ export default function BlogPostsSection() {
   // Function to fetch data from the API
   async function fetchBlogPopsts() {
     try {
-      const response = await fetch(api("/blogposts"));
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/blogposts`
+      );
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
