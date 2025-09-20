@@ -6,15 +6,15 @@ import api from "../../utils/api.js";
 import Link from "next/link";
 import BlogCard from "../BlogCard/BlogCard";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 export default function BlogPostsSection() {
   const [blogPostsData, setBlogPostsData] = useState([]);
 
   // Function to fetch data from the API
   async function fetchBlogPopsts() {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/blogposts`
-      );
+      const response = await fetch(`${API_URL}/api/blogposts`);
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }

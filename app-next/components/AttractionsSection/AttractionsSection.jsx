@@ -6,6 +6,8 @@ import api from "../../utils/api.js";
 import Link from "next/link";
 import AttractionCard from "../AttractionCard/AttractionCard";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 export default function AttractionsSection() {
   const [attractionCardData, setAttractionCardData] = useState([]);
 
@@ -14,9 +16,7 @@ export default function AttractionsSection() {
   // Function to fetch data from the API
   async function fetchAttractionCards() {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attractions`
-      );
+      const response = await fetch(`${API_URL}/api/attractions`);
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
