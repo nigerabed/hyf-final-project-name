@@ -67,6 +67,50 @@
   gap: 1rem;
 }
 
+.authMessage {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,245,235,1), rgba(255,250,240,1));
+  border: 1px solid rgba(255,200,120,0.35);
+  color: #7a4b00;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.authMessage p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.authLink {
+  display: inline-block;
+  text-align: center;
+  margin-left: auto;
+  background: #1f84ca;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(0,87,255,0.18);
+}
+
+.authLink:hover {
+  transform: translateY(-1px);
+}
+
+.formError {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  background: #fff5f5;
+  border: 1px solid #f3c1c1;
+  color: #7a1a1a;
+  font-weight: 600;
+}
+
 /* Button alignment utility */
 .actionsRow {
   display: flex;
@@ -77,6 +121,11 @@
 }
 
 @media (max-width: 560px) {
+
+  .viewContainer {
+    margin: 0 16px;
+  }
+
   .dateInputs {
     flex-direction: column;
   }
