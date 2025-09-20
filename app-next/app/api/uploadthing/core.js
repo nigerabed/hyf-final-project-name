@@ -1,10 +1,6 @@
 import { createUploadthing } from "uploadthing/next";
 import jwt from "jsonwebtoken";
 
-console.log(
-  "[SERVER DEBUG] STAGE A: core.js file is being loaded by the server."
-);
-
 const f = createUploadthing();
 
 const getUserFromToken = async (req) => {
@@ -13,6 +9,7 @@ const getUserFromToken = async (req) => {
     if (!authHeader) return null;
     const token = authHeader.split(" ")[1];
     if (!token) return null;
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return decoded;
   } catch (error) {
@@ -27,29 +24,33 @@ const getUserFromToken = async (req) => {
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async ({ req }) => {
-      console.log(
-        "\n[SERVER DEBUG] STAGE B: imageUploader middleware has been triggered by an upload request."
-      );
+      // --- START OF NEW DEBUGGING BLOCK ---
+      console.log("\n[SERVER DEBUG] --- INCOMING UPLOAD REQUEST ---");
+      console.log("[SERVER DEBUG] Request Method:", req.method);
+      console.log("[SERVER DEBUG] Request URL:", req.url);
+      console.log("[SERVER DEBUG] All Request Headers:", req.headers);
+      // --- END OF NEW DEBUGGING BLOCK ---
 
       const user = await getUserFromToken(req);
 
       if (!user) {
-        console.error("[SERVER DEBUG] STAGE B FAILED: User is not authorized.");
-        throw new Error("Unauthorized: You must be logged in to upload files.");
+        console.error(
+          "[SERVER DEBUG] Middleware check FAILED: User is not authorized."
+        );
+        throw new Error("Unauthorized");
       }
 
       console.log(
-        `[SERVER DEBUG] STAGE B SUCCESS: User ${user.id} is authorized.`
+        `[SERVER DEBUG] Middleware check SUCCESS: User ${user.id} is authorized.`
       );
       return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log(
-        "\n[SERVER DEBUG] STAGE C: onUploadComplete has been triggered."
+        "\n[SERVER DEBUG] Upload was successful and onUploadComplete was triggered."
       );
       console.log("Upload complete for user ID:", metadata.userId);
       console.log("File URL: ", file.url);
-      console.log("[SERVER DEBUG] End of successful upload process.\n");
       return { uploadedBy: metadata.userId };
     }),
 };
