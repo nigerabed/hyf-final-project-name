@@ -15,15 +15,30 @@ export default function Card({ card, onFavoriteChange, viewLink, size = "regular
   const { favourite, toggle, loading } = useFavorite({ itemId: card.id, itemType: "tour", initial: initialFav });
   const router = useRouter();
 
-  // Price: backend provides price_usd as minor units (e.g. "455000")
-  const priceMinor = Number(card?.price_usd ?? card?.price_minor ?? 0);
-  const priceNumber = Number.isFinite(priceMinor) ? priceMinor / 100 : 0;
-  const priceFormatted = priceNumber.toLocaleString(undefined, {
+  // Normalize price from multiple possible shapes:
+  // - mockData: card.price (whole dollars)
+  // - API: card.price_minor or card.price_usd (cents/minor units)
+  // - accommodations may use price_per_night_minor
+  const priceNumber = (() => {
+    if (!card) return 0;
+    if (typeof card.price === "number") return card.price;
+    if (typeof card.price_usd === "number") return card.price_usd / 100;
+    if (typeof card.price_minor === "number") return card.price_minor / 100;
+    if (typeof card.price_per_night_minor === "number") return card.price_per_night_minor / 100;
+    return 0;
+  })();
+
+  const currency = card?.currency_code ?? "USD";
+  const priceFormatted = new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
+  }).format(priceNumber);
 
-  const currencySymbol = card?.currency_symbol ?? card?.currency_code ?? "";
+  // If the item represents an accommodation (per-night price exists), show a per-night label
+  const isAccommodation = typeof card?.price_per_night_minor === "number" || typeof card?.price_per_night === "number";
+  const priceLabel = isAccommodation ? "/night" : "";
 
   const rating = card?.average_rating !== undefined ? Number(card.average_rating) : card?.rating;
 
@@ -112,7 +127,7 @@ export default function Card({ card, onFavoriteChange, viewLink, size = "regular
 
         <div className={styles.cardDetails}>
           <span className={styles.price}>
-            {currencySymbol} {priceFormatted}
+            {priceFormatted} {priceLabel}
           </span>
 
           <span className={styles.duration}>{card?.duration_days ?? "-"} days</span>
