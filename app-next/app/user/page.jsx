@@ -64,15 +64,17 @@ export default function UserPage() {
       const formData = new FormData();
       formData.append("files", file);
 
-      // We use a relative path for the Next.js API route
-      const response = await fetch(`/api/uploadthing`, {
-        method: "POST",
-        body: formData,
-        headers: {
-          // This is the critical part that attaches the token
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // THE ONLY CHANGE IS ON THE NEXT LINE: Adding the required query parameters
+      const response = await fetch(
+        `/api/uploadthing?actionType=upload&slug=imageUploader`,
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorBody = await response
