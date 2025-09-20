@@ -1,14 +1,16 @@
-import { createUploadthing } from "uploadthing/next";
-import { UploadThingError } from "uploadthing/server";
+const { createUploadthing } = require("uploadthing/next");
 
 const f = createUploadthing();
 
 const getUser = async () => ({ id: "fake-user-id" });
 
-export const ourFileRouter = {
+const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
-    .onUploadComplete(async ({ metadata, file }) => {
+    .input(() => ({})) // required to avoid "Invalid input" in production
+    .onUploadComplete(async ({ file }) => {
       console.log("Upload complete for file:", file.url);
       return { uploadedBy: "admin" };
     }),
 };
+
+module.exports = { ourFileRouter };
