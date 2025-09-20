@@ -14,6 +14,7 @@ import Card from "../../components/Card/Card";
 import cardStyles from "../../components/Card/Card.module.css";
 import BlogCard from "../../components/BlogCard/BlogCard";
 import AttractionCard from "../../components/AttractionCard/AttractionCard";
+import { useUploadThing } from "../../utils/uploadthing";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -44,53 +45,28 @@ export default function UserPage() {
   const [createError, setCreateError] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
 
-  // Refs and state for the new unified upload handler
   const fileInputRef = useRef(null);
-  const [uploadTarget, setUploadTarget] = useState(null); // 'profile' or 'post'
+  const [uploadTarget, setUploadTarget] = useState(null);
 
-  // A single, reusable function for handling authenticated file uploads.
-  const handleAuthenticatedUpload = async (file) => {
-    if (!file) return;
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("You must be logged in to upload files.");
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append("files", file);
-
-      const response = await fetch(`/api/uploadthing`, {
-        method: "POST",
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed. Server responded with an error.");
-      }
-
-      const result = await response.json();
-
-      if (result && result.length > 0) {
-        const imageUrl = result[0].url;
+  const { startUpload, isUploading } = useUploadThing("imageUploader", {
+    onClientUploadComplete: (res) => {
+      if (res && res[0]?.url) {
         if (uploadTarget === "profile") {
-          // This function updates the user's profile on the main API (b1)
-          await onUploadComplete([{ url: imageUrl }]);
+          onUploadComplete(res);
         } else if (uploadTarget === "post") {
-          setNewPost((n) => ({ ...n, cover_image_url: imageUrl }));
+          setNewPost((n) => ({ ...n, cover_image_url: res[0].url }));
         }
-      } else {
-        throw new Error("Upload completed but no URL was returned.");
+        alert("Upload successful!");
       }
-    } catch (error) {
+    },
+    onUploadError: (error) => {
       alert(`Upload failed: ${error.message}`);
-      setCreateError(`Upload failed: ${error.message}`);
-    }
+    },
+  });
+
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+    await startUpload([file]);
   };
 
   async function safeParseResponse(res) {
@@ -350,7 +326,6 @@ export default function UserPage() {
     if (!type || !id) {
       return;
     }
-
     if (cancelling[String(id)]) {
       return;
     }
@@ -362,7 +337,6 @@ export default function UserPage() {
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-
       const res = await fetch(
         `${API_URL}/api/bookings/${type}/${encodeURIComponent(id)}/cancel`,
         {
@@ -693,23 +667,23 @@ export default function UserPage() {
                   accept="image/*"
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
-                      handleAuthenticatedUpload(e.target.files[0]);
+                      handleFileSelect(e.target.files[0]);
                     }
                   }}
                 />
                 <button
                   className={styles.uploadThingButton}
+                  disabled={isUploading}
                   onClick={() => {
                     setUploadTarget("profile");
                     fileInputRef.current?.click();
                   }}
                 >
-                  Upload photo
+                  {isUploading ? "Uploading..." : "Upload photo"}
                 </button>
               </div>
             ) : null}
           </div>
-
           <div className={styles.info}>
             {editing ? (
               <form onSubmit={onSubmit}>
@@ -797,7 +771,6 @@ export default function UserPage() {
             )}
           </div>
         </div>
-
         <div style={{ marginTop: 32 }}>
           <h3 className={styles.sectionHeader}>Change Password</h3>
           {changingPassword ? (
@@ -977,20 +950,17 @@ export default function UserPage() {
           <p className={styles.empty}>Please log in to view your bookings.</p>
         </div>
       );
-
     const visibleBookings = Array.isArray(bookings)
       ? bookings.filter(
           (bb) => (bb.booking_status || bb.status || "booked") !== "cancelled"
         )
       : [];
-
     return (
       <div className={styles.profileCard}>
         <div className={styles.sectionHeader}>
           <h3>My Bookings</h3>
           <p>Manage your travel bookings and reservations</p>
         </div>
-
         {visibleBookings.length === 0 ? (
           <div className={styles.bookingsEmpty}>
             <div className={styles.bookingsEmptyIcon}>📋</div>
@@ -1027,7 +997,6 @@ export default function UserPage() {
                 : booking.trip_id
                 ? `/trips/${booking.trip_id}`
                 : "#";
-
               const cardData = {
                 id: tourId || booking.booking_id || booking.id,
                 name: title,
@@ -1042,7 +1011,6 @@ export default function UserPage() {
                 booked_at: bookedAt,
                 booking_type: bookingType,
               };
-
               return (
                 <div
                   key={booking.booking_id || booking.id}
@@ -1160,10 +1128,7 @@ export default function UserPage() {
                         if (token) headers.Authorization = `Bearer ${token}`;
                         const res = await fetch(
                           `${API_URL}/api/blogposts/${p.id}`,
-                          {
-                            method: "DELETE",
-                            headers,
-                          }
+                          { method: "DELETE", headers }
                         );
                         if (res.ok) {
                           setPosts((all) =>
@@ -1212,7 +1177,6 @@ export default function UserPage() {
         <div className={styles.sectionHeader}>
           <h3>My Favorites</h3>
         </div>
-
         <div className={styles.subSection}>
           <h4>Favorite Tours</h4>
           {!Array.isArray(favoriteTours) || favoriteTours.length === 0 ? (
@@ -1233,7 +1197,6 @@ export default function UserPage() {
             </div>
           )}
         </div>
-
         <div className={styles.subSection}>
           <h4>Favorite Posts</h4>
           {!Array.isArray(favoritePosts) || favoritePosts.length === 0 ? (
@@ -1253,7 +1216,6 @@ export default function UserPage() {
             </div>
           )}
         </div>
-
         <div className={styles.subSection}>
           <h4>Favorite Attractions</h4>
           {!Array.isArray(favoriteAttractions) ||
@@ -1400,7 +1362,6 @@ export default function UserPage() {
             </nav>
           </div>
         </aside>
-
         <main className={styles.main}>
           <div id="dashboard-content-area" className={styles.dashboardContent}>
             {currentSection === "summary" && renderSummary()}
@@ -1435,7 +1396,6 @@ export default function UserPage() {
                 const title = (newPost.title || "").trim();
                 const category = (newPost.category || "").trim();
                 const content = (newPost.content || "").trim();
-
                 setCreatingPost(true);
                 try {
                   const token =
@@ -1444,7 +1404,6 @@ export default function UserPage() {
                       : null;
                   const headers = { "Content-Type": "application/json" };
                   if (token) headers.Authorization = `Bearer ${token}`;
-
                   if (newPost && newPost.id) {
                     const res = await fetch(
                       `${API_URL}/api/blogposts/${encodeURIComponent(
@@ -1632,19 +1591,20 @@ export default function UserPage() {
                         accept="image/*"
                         onChange={(e) => {
                           if (e.target.files && e.target.files[0]) {
-                            handleAuthenticatedUpload(e.target.files[0]);
+                            handleFileSelect(e.target.files[0]);
                           }
                         }}
                       />
                       <button
                         type="button"
                         className={styles.uploadThingButton}
+                        disabled={isUploading}
                         onClick={() => {
                           setUploadTarget("post");
                           fileInputRef.current?.click();
                         }}
                       >
-                        Upload Cover Image
+                        {isUploading ? "Uploading..." : "Upload Cover Image"}
                       </button>
                     </div>
                   )}
