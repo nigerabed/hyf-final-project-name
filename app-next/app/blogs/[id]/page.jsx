@@ -225,14 +225,27 @@ export default function AttractionDetailsPage() {
       <div className={styles.pageWrapper}>
         <div className={styles.travelCard}>
           <div className={styles.imageWrapper}>
-            <Image
-              src={imageSrc || blog.cover_image_url}
-              alt={title}
-              fill
-              style={{ objectFit: "cover" }}
-              sizes="(max-width: 900px) 100vw, 50vw"
-              className={styles.image}
-            />
+            {(() => {
+              const finalImageSrc =
+                (imageSrc && String(imageSrc).trim()) ||
+                (blog.cover_image_url && String(blog.cover_image_url).trim()) ||
+                null;
+              if (!finalImageSrc) {
+                return (
+                  <div className={styles.imagePlaceholder} aria-hidden="true" />
+                );
+              }
+              return (
+                <Image
+                  src={finalImageSrc}
+                  alt={title}
+                  fill
+                  style={{ objectFit: "cover" }}
+                  sizes="(max-width: 900px) 100vw, 50vw"
+                  className={styles.image}
+                />
+              );
+            })()}
           </div>
           <div className={styles.cardContent}>
             <h4 className={styles.cardTitle}>{title}</h4>
