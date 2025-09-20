@@ -12,13 +12,6 @@ export default function UploadTestPage() {
     if (!file) return;
 
     const token = localStorage.getItem("token");
-    if (!token) {
-      alert(
-        "Authentication error. Please log in to the main application first."
-      );
-      return;
-    }
-
     setIsUploading(true);
     setLastUploadedUrl(null);
 
@@ -26,24 +19,56 @@ export default function UploadTestPage() {
       const formData = new FormData();
       formData.append("files", file);
 
-      const response = await fetch(
-        `/api/uploadthing?actionType=upload&slug=imageUploader`,
-        {
-          method: "POST",
-          body: formData,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const url = `/api/uploadthing?actionType=upload&slug=imageUploader`;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const options = {
+        method: "POST",
+        body: formData,
+        headers: headers,
+      };
+
+      // --- START OF COMPREHENSIVE DEBUGGING BLOCK ---
+      console.log(
+        "%c--- UPLOAD ATTEMPT (CLIENT-SIDE) ---",
+        "color: blue; font-weight: bold;"
       );
+      console.log("Timestamp:", new Date().toISOString());
+      console.log("Request URL:", url);
+      console.log("Token exists:", !!token);
+      console.log("Request Headers Sent:", options.headers);
+      console.log("File being sent:", file);
+      // --- END OF COMPREHENSIVE DEBUGGING BLOCK ---
+
+      const response = await fetch(url, options);
 
       if (!response.ok) {
-        const errorBody = await response
-          .json()
-          .catch(() => ({ error: "Upload failed" }));
-        throw new Error(
-          errorBody.error || `Server responded with status ${response.status}`
+        // --- START OF DETAILED ERROR LOGGING ---
+        console.error(
+          "%c--- UPLOAD FAILED (CLIENT-SIDE) ---",
+          "color: red; font-weight: bold;"
         );
+        console.error("Response Status:", response.status);
+        console.error("Response Status Text:", response.statusText);
+        const errorBodyText = await response.text();
+        console.error("Full Response Body from Server:", errorBodyText);
+        // --- END OF DETAILED ERROR LOGGING ---
+
+        try {
+          const errorJson = JSON.parse(errorBodyText);
+          throw new Error(
+            errorJson.message ||
+              errorJson.error ||
+              `Server responded with status ${response.status}`
+          );
+        } catch {
+          throw new Error(
+            `Server responded with status ${response.status}. The response body was: ${errorBodyText}`
+          );
+        }
       }
 
       const result = await response.json();
@@ -57,9 +82,9 @@ export default function UploadTestPage() {
       }
     } catch (error) {
       alert(`Upload failed: ${error.message}`);
+      console.error("Final upload error caught in handler:", error);
     } finally {
       setIsUploading(false);
-      // Clear the file input value so the same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
