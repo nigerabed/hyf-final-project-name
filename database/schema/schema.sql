@@ -103,7 +103,7 @@ CREATE TABLE travel_plans (
     currency_code CHAR(3) REFERENCES currencies (code),
     capacity INTEGER,
     cover_image_url VARCHAR(255),
-    owner_id UUID REFERENCES users (id) ON DELETE SET NULL, -- Null for official tours
+    owner_id UUID REFERENCES users (id) ON DELETE SET NULL,
     plan_type VARCHAR(20) NOT NULL CHECK (plan_type IN ('user', 'tour')),
     rating NUMERIC(3, 2) DEFAULT 0.00,
     rating_count INTEGER DEFAULT 0,
@@ -159,7 +159,7 @@ CREATE TABLE attraction_posts (
 CREATE TABLE user_posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    trip_id UUID REFERENCES travel_plans (id) ON DELETE SET NULL, -- Link to a user's trip
+    trip_id UUID REFERENCES travel_plans (id) ON DELETE SET NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     category VARCHAR(50),
@@ -250,7 +250,7 @@ CREATE TABLE comments (
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     commentable_id UUID NOT NULL,
-    commentable_type VARCHAR(50) NOT NULL, -- e.g., 'post', 'attraction'
+    commentable_type VARCHAR(50) NOT NULL,
     created_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT NOW(),
@@ -423,7 +423,8 @@ CREATE TABLE trip_chat_messages (
     WITH
         TIME ZONE DEFAULT NOW()
 );
--- Stores the trip state for travel planniner
+
+-- Stores the trip state for travel planner
 CREATE TABLE trip_states (
     trip_id UUID PRIMARY KEY,
     planning_phase VARCHAR(255) NOT NULL DEFAULT 'preferences',
