@@ -1,26 +1,4 @@
 const mockData = {
-  attractions: [
-    {
-      id: "louvre",
-      name: "Louvre Museum",
-      image: "https://picsum.photos/seed/louvre/400/300",
-    },
-    {
-      id: "eiffel",
-      name: "Eiffel Tower",
-      image: "https://picsum.photos/seed/eiffel/400/300",
-    },
-    {
-      id: "sainte-chapelle",
-      name: "Sainte-Chapelle",
-      image: "https://picsum.photos/seed/sainte/400/300",
-    },
-    {
-      id: "orsay",
-      name: "Musée d'Orsay",
-      image: "https://picsum.photos/seed/orsay/400/300",
-    },
-  ],
   accommodations: [
     {
       id: 101,
